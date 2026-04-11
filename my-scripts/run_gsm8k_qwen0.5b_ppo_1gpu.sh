@@ -18,6 +18,8 @@ set -x
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-4}
 export PYTHONUNBUFFERED=1
 
+export RAY_TMPDIR=/dev/shm/ray_tmp
+
 # 路径配置 (容器内绝对路径, 对应宿主机挂载卷)
 DATA_DIR=/root/data/gsm8k
 MODEL_PATH=/root/models/Qwen2.5-0.5B-Instruct
