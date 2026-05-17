@@ -3,6 +3,16 @@ Hermeneutic Search Agent Loop with TRUE context reset.
 
 Format: only <transform>...</transform> (lowercase, strict).
 Parser is strict — model must learn the exact format via RL.
+
+Design:
+- Each cycle is generated with a fresh prompt (real context reset during rollout).
+- All cycles are packed compactly into one response sequence (no PAD separator).
+- Cycle boundary positions are recorded in extra_fields for downstream training.
+- The custom AgentLoopWorker uses these boundaries to compute position_ids with
+  per-cycle reset, which makes transformers' flash_attention detect packed sequences
+  and apply block-diagonal attention isolation.
+
+See varlen_cu_seqlens_explained.md for the full mechanism.
 """
 
 import json
@@ -12,27 +22,19 @@ import re
 from typing import Any
 from uuid import uuid4
 
-import torch
-
 from verl.experimental.agent_loop.agent_loop import (
-    AgentLoopBase,
     AgentLoopOutput,
     register,
 )
 from verl.experimental.agent_loop.tool_agent_loop import (
     AgentData,
-    AgentState,
     ToolAgentLoop,
 )
-from verl.experimental.agent_loop.tool_parser import FunctionCall
-from verl.tools.schemas import ToolResponse
 from verl.utils.rollout_trace import rollout_trace_op
 from verl.workers.rollout.replica import TokenOutput
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
-
-CYCLE_SEPARATOR_LEN = 2
 
 
 def parse_hermeneutic_action(text: str) -> tuple:
@@ -64,6 +66,12 @@ class HermeneuticAgentLoop(ToolAgentLoop):
     - <tool_call>{"name":"search","arguments":{"query_list":[...]}}</tool_call> → search
     - <transform>refined question</transform> → context reset to new question
     - <answer>final answer</answer> → terminate
+
+    Output:
+    - response_ids: compact concatenation of all cycles (no separators)
+    - extra_fields["cycle_boundary_positions"]: list of int, position in
+      response_ids where each cycle starts (always starts with 0). Used by
+      HermeneuticAgentLoopWorker to compute position_ids with per-cycle reset.
     """
 
     @rollout_trace_op
@@ -78,8 +86,6 @@ class HermeneuticAgentLoop(ToolAgentLoop):
         metrics = {}
         request_id = uuid4().hex
         tools_kwargs = kwargs.get("tools_kwargs", {})
-
-        pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
 
         # Per-cycle storage
         cycles_data = []
@@ -240,39 +246,43 @@ class HermeneuticAgentLoop(ToolAgentLoop):
                 "logprobs": current_cycle_logprobs,
             })
 
-        # Pack cycles with PAD separators
+        # === Pack cycles compactly (no PAD separators) ===
+        # Cycle 0: prompt is the original prompt (returned separately)
+        #          response = cycle_0_response
+        # Cycle i (i>=1): both prompt and response go into final_response_ids,
+        #                  with cycle_i_prompt marked response_mask=0 (non-trainable)
+        # We record cycle_boundary_positions: start position of each cycle in response_ids.
         final_prompt_ids = cycles_data[0]["prompt_ids"] if cycles_data else list(initial_prompt_ids)
         final_response_ids = []
         final_response_mask = []
         final_logprobs = []
+        cycle_boundary_positions = [0]  # cycle 0 always starts at position 0
 
         for i, cycle in enumerate(cycles_data):
             if i == 0:
+                # Cycle 0: only response goes into response_ids
                 final_response_ids.extend(cycle["response_ids"])
                 final_response_mask.extend(cycle["response_mask"])
                 final_logprobs.extend(cycle["logprobs"])
             else:
-                # PAD separator → attention break
-                sep = [pad_token_id] * CYCLE_SEPARATOR_LEN
-                final_response_ids.extend(sep)
-                final_response_mask.extend([0] * CYCLE_SEPARATOR_LEN)
-                final_logprobs.extend([0.0] * CYCLE_SEPARATOR_LEN)
+                # Record where this cycle starts (relative to response_ids)
+                cycle_boundary_positions.append(len(final_response_ids))
 
-                # Cycle prompt (non-trainable)
+                # Cycle i prompt (non-trainable, in response_ids region)
                 final_response_ids.extend(cycle["prompt_ids"])
                 final_response_mask.extend([0] * len(cycle["prompt_ids"]))
                 final_logprobs.extend([0.0] * len(cycle["prompt_ids"]))
 
-                # Cycle response (trainable)
+                # Cycle i response (trainable)
                 final_response_ids.extend(cycle["response_ids"])
                 final_response_mask.extend(cycle["response_mask"])
                 final_logprobs.extend(cycle["logprobs"])
 
-        # Sample and print full trajectory (like SR1)
+        # Trace logging (like SR1's random sampling)
         import random as _rnd
         if _rnd.randint(1, 8) == 1:
             _text = self.tokenizer.decode(final_response_ids[:max_total_response], skip_special_tokens=False)
-            print(f"[SAMPLE] cycles={num_cycles} transforms={len(transform_questions)}")
+            print(f"[SAMPLE] cycles={num_cycles} transforms={len(transform_questions)} boundaries={cycle_boundary_positions}")
             print(f"[SAMPLE] {_text[:800]}")
             if transform_questions:
                 print(f"[SAMPLE] Qs: {transform_questions[:3]}")
@@ -290,6 +300,9 @@ class HermeneuticAgentLoop(ToolAgentLoop):
                 **agent_data.extra_fields,
                 "num_cycles": num_cycles,
                 "transform_questions": transform_questions,
+                # Explicit cycle boundaries for HermeneuticAgentLoopWorker
+                "cycle_boundary_positions": cycle_boundary_positions,
+                "prompt_length": len(final_prompt_ids),
             },
         )
         return output

@@ -11,10 +11,11 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID
 PROJECT_DIR=/workspace/verl
 CONFIG_PATH=$PROJECT_DIR/examples/hermeneutic_search/config
 TOOL_CONFIG=$PROJECT_DIR/examples/sglang_multiturn/config/tool_config/search_tool_config.yaml
+AGENT_LOOP_CONFIG=$PROJECT_DIR/examples/hermeneutic_search/config/agent_loop_config.yaml
 
 TRAIN_DATA=$PROJECT_DIR/data/hermeneutic_search/train.parquet
 VAL_DATA=$PROJECT_DIR/data/hermeneutic_search/test.parquet
-MODEL=/workspace/models/Qwen2.5-3B-Instruct
+MODEL=/workspace/models/Qwen2.5-3B
 
 python3 -m examples.hermeneutic_search.main_hermeneutic \
     --config-path="$CONFIG_PATH" \
@@ -32,7 +33,9 @@ python3 -m examples.hermeneutic_search.main_hermeneutic \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
-    actor_rollout_ref.actor.use_kl_loss=False \
+    actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.kl_loss_coef=0.001 \
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
@@ -44,21 +47,22 @@ python3 -m examples.hermeneutic_search.main_hermeneutic \
     actor_rollout_ref.rollout.n=3 \
     actor_rollout_ref.rollout.multi_turn.max_assistant_turns=3 \
     actor_rollout_ref.rollout.agent.default_agent_loop=hermeneutic_agent \
-    actor_rollout_ref.rollout.agent.agent_loop_config_path=/workspace/verl/examples/hermeneutic_search/config/agent_loop_config.yaml \
+    actor_rollout_ref.rollout.agent.agent_loop_config_path=$AGENT_LOOP_CONFIG \
+    actor_rollout_ref.rollout.agent.agent_loop_manager_class=examples.hermeneutic_search.tools.hermeneutic_agent_worker.HermeneuticAgentLoopManager \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.use_kl_in_reward=False \
     trainer.critic_warmup=0 \
     trainer.val_before_train=False \
     trainer.test_freq=-1 \
-    'trainer.logger=[console]' \
+    'trainer.logger=[console,wandb]' \
     trainer.project_name=HermeneuticSearch \
-    trainer.experiment_name=hs-1gpu-test \
+    trainer.experiment_name=hs-3b-base-clean-refactor \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
-    trainer.save_freq=-1 \
+    trainer.save_freq=100 \
     data.train_files=$TRAIN_DATA \
-    data.val_files=$VAL_DATA \
+    data.val_files=$TRAIN_DATA \
     actor_rollout_ref.rollout.multi_turn.tool_config_path=$TOOL_CONFIG \
     reward.custom_reward_function.path=/workspace/verl/verl/utils/reward_score/hermeneutic_qa_em.py \
     reward.custom_reward_function.name=compute_score \
