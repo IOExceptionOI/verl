@@ -79,6 +79,15 @@ class HermeneuticAgentLoop(ToolAgentLoop):
         print("[HermeneuticAgentLoop] run() invoked")
         messages = list(kwargs["raw_prompt"])
 
+        # Inject stop sequences so the model halts at the END of any action tag.
+        # no_stop_trim=True keeps the closing tag in the output so our reward regex
+        # (which requires </answer>) can match.
+        # Without this, base models without strong EOS habit will spam
+        # <answer>X</answer><answer>X</answer>... until max_new_tokens.
+        sampling_params = dict(sampling_params)
+        sampling_params["stop"] = ["</answer>", "</transform>", "</tool_call>"]
+        sampling_params["no_stop_trim"] = True
+
         multi_modal_data = await self.process_vision_info(messages)
         images = multi_modal_data.get("images")
         videos = multi_modal_data.get("videos")
