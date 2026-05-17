@@ -2,111 +2,91 @@
 Custom RewardManager that injects `global_steps` into each sample's extra_info.
 
 Why this exists:
-verl's default NaiveRewardManager does NOT pass `global_steps` to the reward
-function — only data-level fields (extra_info, ground_truth, etc). But our
-reward function wants to do decay-based reward shaping (e.g., format_score
-that anneals to 0 over time). Without step info that's impossible.
+verl's default reward managers don't pass `global_steps` to the reward function
+— only data-level fields. But we want step-aware reward shaping (format_score
+that decays over training). This manager reads `data.meta_info["global_steps"]`
+(set by trainer) and injects it into extra_info before calling compute_score.
 
-This manager:
-1. Reads `data.meta_info["global_steps"]` (set by trainer at ray_trainer.py:1367)
-2. Injects it into each sample's `extra_info["global_steps"]`
-3. Then calls compute_score as usual
+Built on verl 0.8's experimental RewardManagerBase interface (run_single per sample).
 
-The reward function then reads `extra_info["global_steps"]` to compute decay.
-
-Register name: "hermeneutic" — configure in run script via
-    reward.reward_manager.name=hermeneutic
+Wire via:
+    reward.reward_manager.source=importlib
+    reward.reward_manager.name=HermeneuticRewardManager
+    reward.reward_manager.module.path=.../hermeneutic_reward_manager.py
 """
 
-from collections import defaultdict
-from typing import Any
-
-import torch
+import inspect
 
 from verl import DataProto
+from verl.experimental.reward_loop.reward_manager.base import RewardManagerBase
 from verl.utils.reward_score import default_compute_score
-from verl.workers.reward_manager import register
-from verl.workers.reward_manager.abstract import AbstractRewardManager
 
 
-@register("hermeneutic")
-class HermeneuticRewardManager(AbstractRewardManager):
-    """NaiveRewardManager + global_steps injection."""
+class HermeneuticRewardManager(RewardManagerBase):
+    """Inject global_steps into extra_info, then call compute_score."""
 
-    def __init__(self, tokenizer, num_examine, compute_score=None, reward_fn_key="data_source") -> None:
-        self.tokenizer = tokenizer
-        self.num_examine = num_examine
+    def __init__(self, config, tokenizer, compute_score, reward_router_address=None, reward_model_tokenizer=None):
+        super().__init__(config, tokenizer, compute_score)
         self.compute_score = compute_score or default_compute_score
-        self.reward_fn_key = reward_fn_key
+        self.is_async_reward_score = inspect.iscoroutinefunction(self.compute_score)
+        self.reward_router_address = reward_router_address
+        self.reward_model_tokenizer = reward_model_tokenizer
 
-    def __call__(self, data: DataProto, return_dict: bool = False) -> torch.Tensor | dict[str, Any]:
-        reward_from_rm_scores = self._extract_reward_from_rm_scores(data, return_dict)
-        if reward_from_rm_scores is not None:
-            return reward_from_rm_scores
+    async def run_single(self, data: DataProto) -> dict:
+        assert len(data) == 1, "Only support single data item"
+        data_item = data[0]
 
-        # Read step from batch meta_info (set by trainer)
+        # Decode response
+        prompt_ids = data_item.batch["prompts"]
+        prompt_length = prompt_ids.shape[-1]
+        valid_response_length = data_item.batch["attention_mask"][prompt_length:].sum()
+        valid_response_ids = data_item.batch["responses"][:valid_response_length]
+        response_str = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
+
+        data_source = data_item.non_tensor_batch["data_source"]
+        ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
+
+        # Build extra_info with step injected
+        extra_info = data_item.non_tensor_batch.get("extra_info", None)
+        extra_info = dict(extra_info) if extra_info else {}
+
+        # Read global_steps from batch meta_info (set by trainer at ray_trainer.py:1367)
         global_steps = data.meta_info.get("global_steps", 0)
+        extra_info["global_steps"] = global_steps
 
-        reward_tensor = torch.zeros_like(data.batch["responses"], dtype=torch.float32)
-        reward_extra_info = defaultdict(list)
-        already_print_data_sources = {}
+        num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
+        rollout_reward_scores = data_item.non_tensor_batch.get("reward_scores", {})
+        extra_info["num_turns"] = num_turns
+        extra_info["rollout_reward_scores"] = rollout_reward_scores
 
-        for i in range(len(data)):
-            data_item = data[i]
-
-            prompt_ids = data_item.batch["prompts"]
-            prompt_length = prompt_ids.shape[-1]
-            valid_prompt_length = data_item.batch["attention_mask"][:prompt_length].sum()
-            valid_prompt_ids = prompt_ids[-valid_prompt_length:]
-
-            response_ids = data_item.batch["responses"]
-            valid_response_length = data_item.batch["attention_mask"][prompt_length:].sum()
-            valid_response_ids = response_ids[:valid_response_length]
-
-            prompt_str = self.tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
-            response_str = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
-
-            ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
-            data_source = data_item.non_tensor_batch[self.reward_fn_key]
-            extra_info = data_item.non_tensor_batch.get("extra_info", {})
-            num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
-            rollout_reward_scores = data_item.non_tensor_batch.get("reward_scores", {})
-
-            # Inject step info — the key change.
-            extra_info = dict(extra_info) if extra_info else {}
-            extra_info["global_steps"] = global_steps
-            extra_info["num_turns"] = num_turns
-            extra_info["rollout_reward_scores"] = rollout_reward_scores
-
-            score = self.compute_score(
+        # Call compute_score
+        if self.is_async_reward_score:
+            result = await self.compute_score(
                 data_source=data_source,
                 solution_str=response_str,
                 ground_truth=ground_truth,
                 extra_info=extra_info,
             )
+        else:
+            result = await self.loop.run_in_executor(
+                None,
+                lambda: self.compute_score(
+                    data_source=data_source,
+                    solution_str=response_str,
+                    ground_truth=ground_truth,
+                    extra_info=extra_info,
+                ),
+            )
 
-            if isinstance(score, dict):
-                reward = score["score"]
-                for key, value in score.items():
-                    reward_extra_info[key].append(value)
-            else:
-                reward = score
+        if isinstance(result, dict):
+            reward = float(result.get("score", 0.0))
+            reward_extra_info = {k: v for k, v in result.items() if k != "score"}
+        else:
+            reward = float(result)
+            reward_extra_info = {}
 
-            reward_tensor[i, valid_response_length - 1] = reward
-
-            if data_source not in already_print_data_sources:
-                already_print_data_sources[data_source] = 0
-            if already_print_data_sources[data_source] < self.num_examine:
-                already_print_data_sources[data_source] += 1
-                print("[prompt]", prompt_str)
-                print("[response]", response_str)
-                print("[ground_truth]", ground_truth)
-                if isinstance(score, dict):
-                    for key, value in score.items():
-                        print(f"[{key}]", value)
-                else:
-                    print("[score]", score)
-
-        if return_dict:
-            return {"reward_tensor": reward_tensor, "reward_extra_info": reward_extra_info}
-        return reward_tensor
+        return {
+            "reward": reward,
+            "valid_response_length": int(valid_response_length),
+            "reward_extra_info": reward_extra_info,
+        }
