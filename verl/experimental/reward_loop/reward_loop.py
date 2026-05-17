@@ -340,19 +340,29 @@ class RewardLoopManager:
         )
         outputs_flat = [item for sublist in outputs for item in sublist]
 
-        # compute rm score
-        scores = [item["reward_score"] for item in outputs_flat]
+        # Reward functions return a scalar score per response (e.g. 1.0 for correct, -1.0 for wrong).
+        # Here we place that scalar into a (B, T) tensor at the last valid token position,
+        # leaving all other positions as 0. This is the standard RL formulation for outcome-based
+        # reward: the reward is only "received" when the full response is complete.
+        # GAE will then propagate this signal backwards to assign credit to each token.
+        scores = [item["reward_score"] for item in outputs_flat]  # list of B scalars
         if self.config.reward.reward_manager.name == "visual":
-            # visual reward only has one score for the whole response
+            # visual reward: shape (B, 1), one score per response
             rm_scores = torch.tensor(scores, dtype=torch.float32).unsqueeze(-1)
         else:
-            prompt_length = data.batch["prompts"].size(1)
+            prompt_length = data.batch["prompts"].size(1)  # prompt length P
+            # Count valid response tokens per sample by summing attention_mask after prompt
+            # attention_mask shape (B, P+T), [:, P:] selects response part → sum → shape (B,)
             valid_response_length = data.batch["attention_mask"][:, prompt_length:].sum(dim=1)
+            # Initialize all-zero tensor, shape (B, T) where T = response_length
             rm_scores = torch.zeros_like(data.batch["responses"], dtype=torch.float32)
+            # Place scalar reward at the last valid token position for each sample
+            # e.g. if valid_length=4: rm_scores[i, 3] = score, all others remain 0
+            # Result: [0, 0, 0, score, 0, 0, ...]
             rm_scores[torch.arange(rm_scores.size(0)), valid_response_length - 1] = torch.tensor(
                 scores, dtype=torch.float32
             )
-        batch = TensorDict({"rm_scores": rm_scores}, batch_size=len(data))
+        batch = TensorDict({"rm_scores": rm_scores}, batch_size=len(data))  # shape (B, T)
 
         reward_extra_infos = [output.get("reward_extra_info", {}) for output in outputs_flat]
         reward_extra_keys = list(reward_extra_infos[0].keys())

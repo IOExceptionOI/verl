@@ -1203,7 +1203,6 @@ class RayPPOTrainer:
                 old_log_prob = tu.get_tensordict(
                     {"old_log_probs": log_probs.float(), "entropys": entropy.float(), "routed_experts": routed_experts}
                 )
-            else:
                 old_log_prob = tu.get_tensordict({"old_log_probs": log_probs.float(), "entropys": entropy.float()})
             old_log_prob = DataProto.from_tensordict(old_log_prob)
         else:
@@ -1304,7 +1303,8 @@ class RayPPOTrainer:
 
         self.global_steps = 0
 
-        # load checkpoint and update weights before doing anything
+        #* ==================== STAGE 0: Initialization ====================
+        #* Load checkpoint (supports resume training) and sync weights to all workers
         self._load_checkpoint()
         self.checkpoint_manager.update_weights(self.global_steps)
 
@@ -1371,7 +1371,8 @@ class RayPPOTrainer:
 
                 is_last_step = self.global_steps >= self.total_training_steps
                 with marked_timer("step", timing_raw):
-                    # generate a batch
+                    #* ==================== STAGE 1: Rollout Generation ====================
+                    #* Sample responses from current policy; rollout.n>1 for GRPO group sampling
                     with marked_timer("gen", timing_raw, color="red"):
                         if curr_step_profile:
                             self.async_rollout_manager.start_profile()
@@ -1437,6 +1438,8 @@ class RayPPOTrainer:
                             continue
                         images_seqlens_all.extend(multi_modal_input["images_seqlens"].tolist())
                     batch.meta_info["images_seqlens"] = images_seqlens_all
+                    #* ==================== STAGE 2: Reward Computation ====================
+                    #* Score generated responses via reward model or reward function
                     with marked_timer("reward", timing_raw, color="yellow"):
                         # compute reward model score
                         if self.use_rm and "rm_scores" not in batch.batch.keys():
@@ -1446,6 +1449,9 @@ class RayPPOTrainer:
                         # extract reward_tensor and reward_extra_infos_dict for training
                         reward_tensor, reward_extra_infos_dict = extract_reward(batch)
 
+                    #* ==================== STAGE 3: Old Log Prob (π_old) ====================
+                    #? Core of PPO: recompute log prob of rollout tokens under current policy as π_old
+                    #? During actor update, ratio = π_θ / π_old is used in clipped surrogate objective
                     # Operating Mode Selection:
                     # - Bypass mode: Sets old_log_probs = rollout_log_probs (2 policies: π_rollout, π_θ)
                     # - Decoupled mode: Recomputes old_log_probs as proximal anchor (3 policies: π_rollout, π_old, π_θ)
@@ -1495,27 +1501,42 @@ class RayPPOTrainer:
 
                     assert "old_log_probs" in batch.batch, f'"old_log_prob" not in {batch.batch.keys()=}'
 
+                    #* ==================== STAGE 4: Reference Log Prob (π_ref) ====================
+                    #? Compute log prob under frozen reference policy for KL divergence penalty
+                    #? GRPO typically enables this (use_kl_loss=True); optional for PPO
                     if self.use_reference_policy:
                         # compute reference log_prob
                         with marked_timer(str(Role.RefPolicy), timing_raw, color="olive"):
                             ref_log_prob = self._compute_ref_log_prob(batch)
                             batch = batch.union(ref_log_prob)
 
-                    # compute values
+                    #* ==================== STAGE 5: Critic Values ====================
+                    #! Only needed for PPO (GAE); GRPO skips this — no critic network required
                     if self.use_critic:
                         with marked_timer("values", timing_raw, color="cyan"):
                             values = self._compute_values(batch)
                             batch = batch.union(values)
 
+                    #* ==================== STAGE 6: Advantage Computation ====================
+                    #? Computed on driver process (lightweight, no GPU needed)
+                    #? PPO → GAE: advantage_t = δ_t + γλ·advantage_{t+1}, requires critic values
+                    #? GRPO → group normalization: advantage_i = (r_i - mean) / std, no critic needed
                     with marked_timer("adv", timing_raw, color="brown"):
-                        # we combine with rule-based rm
                         reward_extra_infos_dict: dict[str, list]
+                        # reward_tensor comes from extract_reward() → batch["rm_scores"], shape (B, T)
+                        # It's sparse: only the last valid token has the reward score, rest are 0
+                        # e.g. [0, 0, 0, 5.0, 0, 0] for a response with 4 valid tokens scoring 5.0
                         batch.batch["token_level_scores"] = reward_tensor
 
                         if reward_extra_infos_dict:
                             batch.non_tensor_batch.update({k: np.array(v) for k, v in reward_extra_infos_dict.items()})
 
-                        # compute rewards. apply_kl_penalty if available
+                        # token_level_rewards = token_level_scores - β * KL(π_θ || π_ref)
+                        # KL penalty is per-token (dense), so token_level_rewards becomes dense too:
+                        # e.g. scores  = [0,    0,    0,    5.0,  0,    0]
+                        #      KL      = [0.02, 0.03, 0.01, 0.05, 0,    0]  (per-token KL divergence)
+                        #      rewards = [−0.02,−0.03,−0.01, 4.95, 0,    0]
+                        # Without KL penalty, token_level_rewards = token_level_scores (stays sparse)
                         if self.config.algorithm.use_kl_in_reward:
                             batch, kl_metrics = apply_kl_penalty(
                                 batch, kl_ctrl=self.kl_ctrl_in_reward, kl_penalty=self.config.algorithm.kl_penalty
@@ -1554,7 +1575,9 @@ class RayPPOTrainer:
                             config=self.config.algorithm,
                         )
 
-                    # update critic
+                    #* ==================== STAGE 7: Model Update ====================
+                    #? Update critic (value network) first, then actor (policy network)
+                    #! Critic warmup: first N steps only train critic, skip actor update to stabilize value estimates
                     if self.use_critic:
                         with marked_timer("update_critic", timing_raw, color="pink"):
                             critic_output = self._update_critic(batch)
@@ -1589,7 +1612,8 @@ class RayPPOTrainer:
                             with marked_timer("save_checkpoint", timing_raw, color="green"):
                                 self._save_checkpoint()
 
-                        # update weights from trainer to rollout
+                        #! Critical: sync weights to rollout workers immediately after actor update
+                        #! Ensures next step's rollout uses the latest policy
                         with marked_timer("update_weights", timing_raw, color="red"):
                             self.checkpoint_manager.update_weights(self.global_steps)
 
@@ -1601,7 +1625,7 @@ class RayPPOTrainer:
                     if rollout_data_dir:
                         self._log_rollout_data(batch, reward_extra_infos_dict, timing_raw, rollout_data_dir)
 
-                # validate
+                #* ==================== STAGE 8: Validation & Logging ====================
                 if self.config.trainer.test_freq > 0 and (
                     is_last_step or self.global_steps % self.config.trainer.test_freq == 0
                 ):

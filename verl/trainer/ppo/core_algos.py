@@ -241,24 +241,45 @@ def compute_gae_advantage_return(
             shape: (bs, response_length)
 
     """
+    # All input tensors have shape (B, T) where B=batch_size, T=response_length
     with torch.no_grad():
-        nextvalues = 0
-        lastgaelam = 0
-        advantages_reversed = []
-        gen_len = token_level_rewards.shape[-1]
+        nextvalues = 0  # V(t+1), scalar 0 broadcasts to shape (B,); no value beyond the last token
+        lastgaelam = 0  # accumulated GAE advantage A(t+1), starts at 0, shape (B,) after first iteration
+        advantages_reversed = []  # collects advantages in reversed order: [A_{T-1}, A_{T-2}, ..., A_0]
+        gen_len = token_level_rewards.shape[-1]  # T (response_length)
 
+        # Iterate from the last token to the first: t = T-1, T-2, ..., 0
         for t in reversed(range(gen_len)):
+            # [:, t] slices all batch samples at time step t, shape (B, T) → (B,)
+            # delta = r_t + γ * V(t+1) - V(t), the TD(0) error at step t, shape (B,)
             delta = token_level_rewards[:, t] + gamma * nextvalues - values[:, t]
+            # GAE recursion: A_t = δ_t + γλ * A_{t+1}, shape (B,)
             lastgaelam_ = delta + gamma * lam * lastgaelam
 
-            # skip values and TD-error on observation tokens
+            # Skip observation/PAD tokens via arithmetic if-else (tensors can't use python if):
+            #   mask=1 (valid):  nextvalues = values[:, t]   (normal update)
+            #   mask=0 (skip):   nextvalues = nextvalues     (keep previous, "pass through")
+            # This handles multi-turn where mask=0 appears in the middle (observation tokens),
+            # not just trailing PAD — the recursion chain jumps over masked positions.
+            # response_mask[:, t] shape (B,), nextvalues shape (B,), result shape (B,)
             nextvalues = values[:, t] * response_mask[:, t] + (1 - response_mask[:, t]) * nextvalues
+            # lastgaelam_ shape (B,), lastgaelam shape (B,), result shape (B,)
             lastgaelam = lastgaelam_ * response_mask[:, t] + (1 - response_mask[:, t]) * lastgaelam
 
-            advantages_reversed.append(lastgaelam)
+            advantages_reversed.append(lastgaelam)  # append shape (B,)
+
+        # advantages_reversed is a list of T tensors each shape (B,): [A_{T-1}, A_{T-2}, ..., A_0]
+        # [::-1] reverses the Python list → [A_0, A_1, ..., A_{T-1}]
+        # torch.stack(..., dim=1) stacks T tensors of shape (B,) along dim=1 → shape (B, T)
         advantages = torch.stack(advantages_reversed[::-1], dim=1)
 
+        # returns = A_t + V(t) = R_t(λ), the TD(λ) return, used as critic training target
+        # Must be computed BEFORE whitening, since whitening changes the scale of advantages
+        # advantages shape (B, T) + values shape (B, T) → returns shape (B, T)
         returns = advantages + values
+        # Normalize advantages over valid tokens (mask=1) to mean=0, std=1
+        # Stabilizes policy gradient magnitude regardless of reward scale
+        # advantages shape (B, T), response_mask shape (B, T) → result shape (B, T)
         advantages = verl_F.masked_whiten(advantages, response_mask)
     return advantages, returns
 
@@ -301,33 +322,101 @@ def compute_grpo_outcome_advantage(
         Returns: `(torch.Tensor)`
             shape is (bs, response_length)
     """
-    scores = token_level_rewards.sum(dim=-1)
+    # token_level_rewards shape (B, T): sparse, only the last valid token has the scalar
+    # reward (see reward_manager/naive.py: reward_tensor[i, valid_response_length-1] = reward),
+    # rest are 0. e.g. [0, 0, 0, 5.0, 0, 0].sum() = 5.0
+    # If algorithm.use_kl_in_reward=True, upstream subtracts β·KL per token making this
+    # dense; .sum() still yields a meaningful per-response scalar (R - Σ β·k_t).
+    # Note: B here is already num_prompts * n (post batch.repeat); index has shape (B,)
+    # with each uid appearing n times in a row.
+    scores = token_level_rewards.sum(dim=-1)  # shape (B, T) → (B,), one scalar per response
 
-    id2score = defaultdict(list)
-    id2mean = {}
-    id2std = {}
+    # ---- Understanding index, batch, and groups ----
+    #
+    # index is data.non_tensor_batch["uid"], a np.ndarray of shape (B,) containing string uids.
+    # It comes from fit() in ray_trainer.py where each PROMPT gets a unique uuid:
+    #
+    #   batch.non_tensor_batch["uid"] = [uuid4() for _ in range(num_prompts)]
+    #   → e.g. ["aaa", "bbb"]  (2 prompts)
+    #
+    # Then batch.repeat(repeat_times=n, interleave=True) duplicates each uid n times:
+    #   → ["aaa", "aaa", "aaa", "aaa", "bbb", "bbb", "bbb", "bbb"]  (n=4)
+    #
+    # After rollout, each copy generates a DIFFERENT response (due to sampling),
+    # but they share the same uid because they came from the same prompt.
+    #
+    # So in a batch of B=8 samples with n=4:
+    #   index  = ["aaa", "aaa", "aaa", "aaa", "bbb", "bbb", "bbb", "bbb"]
+    #   scores = [ 1.0,   5.0,   3.0,  -1.0,   2.0,   4.0,   0.0,   3.0 ]
+    #             |---- group "aaa" ----|       |---- group "bbb" ----|
+    #
+    # B (batch size) = num_prompts * n = total number of responses
+    # Each group has n responses from the same prompt
+    # GRPO computes advantage WITHIN each group (not across the whole batch)
+
+    id2score = defaultdict(list)  # uid → list of scalar scores in that group
+    id2mean = {}  # uid → group mean
+    id2std = {}   # uid → group std
 
     with torch.no_grad():
-        bsz = scores.shape[0]
+        bsz = scores.shape[0]  # B = total responses = num_prompts * n
+
+        # Step 1: Group scores by prompt uid
+        # After this loop, id2score = {"aaa": [1.0, 5.0, 3.0, -1.0], "bbb": [2.0, 4.0, 0.0, 3.0]}
         for i in range(bsz):
             id2score[index[i]].append(scores[i])
+
+        # Step 2: Compute per-group mean and std (NOT global batch mean/std)
+        # Each group is normalized independently — prompt difficulty cancels out,
+        # only relative quality within the same prompt matters.
         for idx in id2score:
             if len(id2score[idx]) == 1:
+                # Fail-safe: only 1 response → can't compare within group.
+                # mean=0, std=1 makes Step 3 yield advantage = score (no normalization).
+                # Should not happen if upstream batch.repeat(n>=2) ran correctly.
                 id2mean[idx] = torch.tensor(0.0)
                 id2std[idx] = torch.tensor(1.0)
             elif len(id2score[idx]) > 1:
-                scores_tensor = torch.stack(id2score[idx])
-                id2mean[idx] = torch.mean(scores_tensor)
-                id2std[idx] = torch.std(scores_tensor)
+                # id2score[idx] is a list of n 0-dim scalar tensors → stack → shape (n,)
+                # e.g. group "aaa": [1.0, 5.0, 3.0, -1.0] → mean=2.0, std=2.58
+                scores_tensor = torch.stack(id2score[idx])  # shape (n,)
+                # No dim arg needed: for 1-D input, mean(x) == mean(x, dim=0), both → 0-dim scalar.
+                # torch.std default unbiased=True: divides by (n-1), Bessel correction.
+                id2mean[idx] = torch.mean(scores_tensor)  # 0-dim scalar
+                id2std[idx] = torch.std(scores_tensor)    # 0-dim scalar (unbiased)
             else:
                 raise ValueError(f"no score in prompt index: {idx}")
+
+        # Step 3: Normalize each score relative to its own group (not the global batch)
+        # e.g. for group "aaa" (mean=2.0, std=2.58):
+        #   score=5.0 → (5.0-2.0)/2.58 = +1.16  (best in group, reinforce)
+        #   score=-1.0 → (-1.0-2.0)/2.58 = -1.16 (worst in group, suppress)
+        # Step 3: Normalize each score in-place. scores stays shape (B,);
+        # contents change from raw reward → per-group normalized advantage.
+        # scores[i], id2mean[uid], id2std[uid] are all 0-dim scalars.
         for i in range(bsz):
             if norm_adv_by_std_in_grpo:
+                # Original GRPO: advantage = (score - group_mean) / (group_std + ε)
+                # ε prevents div-by-zero when all responses in a group have identical scores (std=0)
                 scores[i] = (scores[i] - id2mean[index[i]]) / (id2std[index[i]] + epsilon)
             else:
+                # Dr.GRPO: advantage = score - group_mean (no std division)
+                # Avoids length bias: long responses → smaller std → dividing would inflate
+                # their advantage and push the model toward longer outputs.
+                # See https://arxiv.org/abs/2503.20783
                 scores[i] = scores[i] - id2mean[index[i]]
+
+        # Step 4: Broadcast scalar advantage to all tokens, then mask out PAD positions
+        # scores shape (B,) → unsqueeze(-1) → (B, 1) → * response_mask (B, T) → (B, T)
+        # Broadcasting: (B, 1) * (B, T) → the single value is copied to all T positions
+        # Unlike GAE which gives different advantages per token (credit assignment),
+        # GRPO assigns the SAME scalar advantage to ALL tokens in a response —
+        # it only knows "this response was better/worse overall", not which token helped.
         scores = scores.unsqueeze(-1) * response_mask
 
+    # Return (advantages, returns) to match the unified estimator interface.
+    # GRPO has no critic, so there's no separate "returns" target — reuse advantages
+    # to fill the slot (downstream critic update is skipped anyway).
     return scores, scores
 
 
@@ -341,20 +430,75 @@ def compute_grpo_vectorized_outcome_advantage(
     config: Optional[AlgoConfig] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Vectorized GRPO（outcome-only）:
-      For each group g:
-      a_i = \\frac{r_i - \\mu_g}{\\sigma_g} (or without dividing by \\sigma_g),
-      then broadcast the scalar across the token dimension (multiplied by response_mask).。
+    Vectorized GRPO (outcome-only): same math as compute_grpo_outcome_advantage,
+    but replaces the python for-loops (defaultdict + per-group mean/std) with
+    pure PyTorch group-by ops, so everything stays on the GPU.
+
+    Per group g:
+        a_i = (r_i - mean_g) / (std_g + eps)        if norm_adv_by_std_in_grpo
+        a_i = (r_i - mean_g)                        otherwise (Dr.GRPO variant)
+
+    The scalar advantage is then broadcast to every valid token of the response
+    (multiplied by response_mask). Same advantage for every token in a response,
+    just like the non-vectorized GRPO — no per-token credit assignment.
     """
+    # token_level_rewards shape (B, T): only the last valid token has the reward,
+    #     rest are 0; summing over T collapses to one scalar per response
+    # response_mask       shape (B, T): 1 for valid response tokens, 0 otherwise
+    # index              shape (B,)   : np.ndarray of string uids; samples sharing
+    #     the same uid come from the same prompt (see comments above on how repeat
+    #     produces ["aaa","aaa",...,"bbb","bbb",...] with interleave=True)
+    # B = num_prompts * n  (n responses per prompt)
     with torch.no_grad():
-        scores = token_level_rewards.sum(dim=-1)
-        g = as_torch_index(index, device=scores.device)
+        # Step 1: collapse token-level rewards to per-response scalars
+        # token_level_rewards shape (B, T) → sum(dim=-1) → shape (B,)
+        # e.g. [0, 0, 0, 5.0, 0, 0] → 5.0
+        scores = token_level_rewards.sum(dim=-1)  # shape (B,)
+
+        # Step 2: convert string uids → contiguous integer group ids 0..G-1
+        # PyTorch tensors cannot hold strings, but we need integer ids so we can
+        # use them as tensor indices in steps 3-4. as_torch_index uses
+        # np.unique(return_inverse=True) under the hood:
+        #     ["aaa","aaa","aaa","aaa","bbb","bbb","bbb","bbb"]
+        #   →  tensor([ 0,    0,    0,    0,    1,    1,    1,    1 ])
+        # G = number of unique uids = num_prompts
+        g = as_torch_index(index, device=scores.device)  # shape (B,) long tensor
+
+        # Step 3: compute per-group mean / std in one vectorized call
+        # Internally uses scatter_add_ to bucket scores by group id and divide by
+        # group size — the GPU equivalent of pandas .groupby().mean()/.std().
+        # Singleton groups (count=1) fallback to mean=0, std=1 for safety.
+        # mean_g shape (G,), std_g shape (G,), count shape (G,)
         mean_g, std_g, _ = group_mean_std(scores, g, eps=epsilon, device=scores.device)
+
+        # Step 4: scatter per-group stats back to each sample via fancy indexing
+        # mean_g[g]: for each sample i, look up mean_g at position g[i]
+        #     mean_g shape (G,), g shape (B,) → mean_g[g] shape (B,)
+        # Same for std_g[g]. This is the vectorized equivalent of the python
+        # `id2mean[index[i]]` lookup in compute_grpo_outcome_advantage.
         if norm_adv_by_std_in_grpo:
-            scalars = (scores - mean_g[g]) / (std_g[g] + epsilon)
+            # Original GRPO: z-score within each group
+            # (scores - mean_g[g])  shape (B,)   → centered per group
+            # (std_g[g] + epsilon)  shape (B,)   → epsilon prevents div-by-zero
+            #                                      when a group has identical scores
+            scalars = (scores - mean_g[g]) / (std_g[g] + epsilon)  # shape (B,)
         else:
-            scalars = scores - mean_g[g]
-        advantages = scalars.unsqueeze(-1) * response_mask
+            # Dr.GRPO: only center, don't scale by std (avoids length bias —
+            # longer responses tend to have smaller std, which would otherwise
+            # inflate their advantage). See https://arxiv.org/abs/2503.20783
+            scalars = scores - mean_g[g]  # shape (B,)
+
+        # Step 5: broadcast scalar advantage to token level
+        # scalars.unsqueeze(-1)       shape (B,) → (B, 1)
+        # response_mask                shape (B, T)
+        # (B, 1) * (B, T) broadcasts → (B, T): the single value is copied to all
+        # T positions; PAD / observation tokens (mask=0) are zeroed out so they
+        # contribute nothing to policy loss.
+        advantages = scalars.unsqueeze(-1) * response_mask  # shape (B, T)
+
+        # GRPO has no critic, so there is no separate "returns" target.
+        # Return advantages twice to match the (advantages, returns) tuple
+        # interface shared by every advantage estimator in this file.
         return advantages, advantages
 
 
@@ -1151,6 +1295,14 @@ def agg_loss(
     - FSDP: the loss is directly used for backward.
     - Megatron: the loss should be scaled by `num_microbatches` and `cp_size` for pp schedule.
 
+    NOTE on `* dp_size`: FSDP/DDP backward auto all-reduce-MEANs gradients across
+    DP ranks (i.e. divides by dp_size). Each rank's loss is normalized by the
+    GLOBAL denominator (batch_num_tokens or global_batch_size) so the per-rank
+    contribution is already (local_sum / global). After the backward mean-reduce
+    that would shrink gradients by another 1/dp_size, so we pre-multiply by
+    dp_size here to cancel it out — the final gradient ends up as
+    (sum_over_ranks local_sum) / global, the true global mean.
+
     Args:
         loss_mat: micro batch loss matrix, (bs, response_length)
         loss_mask: micro batch loss mask, (bs, response_length)
@@ -1165,34 +1317,77 @@ def agg_loss(
         loss: `a scalar torch.Tensor`
             aggregated loss
     """
+    # loss_mat shape (B, T): per-token loss values
+    # loss_mask shape (B, T): 1 for valid tokens, 0 for PAD
+    #
+    # Example setup for all modes below:
+    #   Batch of 2 sequences, advantages are the same for all tokens (GRPO style):
+    #   seq0: 3 valid tokens, loss_mat = [0.5, 0.5, 0.5, 0, 0]  (advantage=0.5)
+    #   seq1: 5 valid tokens, loss_mat = [0.2, 0.2, 0.2, 0.2, 0.2]  (advantage=0.2)
+
     if loss_agg_mode == "token-mean":
+        # Sum all valid token losses, divide by total number of valid tokens
+        # = (0.5*3 + 0.2*5) / (3+5) = 2.5/8 = 0.3125
+        #
+        # Effect: longer sequences contribute MORE to the total loss (more tokens in sum),
+        # but each token's contribution is DILUTED (divided by larger denominator).
+        # For GRPO where all tokens share the same advantage, this means:
+        #   seq0 contributes 3/8 of the gradient, seq1 contributes 5/8
+        #   → longer responses dominate, shorter responses are underweighted
+        # This is the original GRPO paper's 1/|o_i| normalization.
         if batch_num_tokens is None:
             if dp_size > 1:
                 raise ValueError("(global) batch_num_tokens is required when dp_size > 1")
             batch_num_tokens = loss_mask.sum()
         loss = verl_F.masked_sum(loss_mat, loss_mask) / batch_num_tokens * dp_size
+
     elif loss_agg_mode in ["seq-mean-token-sum", "seq-mean-token-sum-norm"]:
-        seq_losses = torch.sum(loss_mat * loss_mask, dim=-1)  # token-sum
-        seq_mask = (torch.sum(loss_mask, dim=-1) > 0).float()  # exclude fully masked sequences
+        # First sum tokens within each sequence, then average across sequences
+        # seq0_loss = 0.5*3 = 1.5,  seq1_loss = 0.2*5 = 1.0
+        # loss = (1.5 + 1.0) / 2 = 1.25
+        #
+        # Effect: each sequence contributes EQUALLY regardless of length.
+        # But longer sequences still have larger token-sum (more tokens × same advantage),
+        # so they get larger absolute gradients → model may prefer longer outputs.
+        seq_losses = torch.sum(loss_mat * loss_mask, dim=-1)  # shape (B,), per-seq token-sum
+        seq_mask = (torch.sum(loss_mask, dim=-1) > 0).float()  # shape (B,), exclude fully masked seqs
         if global_batch_size is None:
             if dp_size > 1:
                 raise ValueError("global_batch_size is required when dp_size > 1")
             global_batch_size = seq_mask.sum()
-        loss = verl_F.masked_sum(seq_losses, seq_mask) / global_batch_size * dp_size  # seq-mean
+        loss = verl_F.masked_sum(seq_losses, seq_mask) / global_batch_size * dp_size
+
         if loss_agg_mode == "seq-mean-token-sum-norm":
+            # Dr.GRPO mode: additionally divide by a fixed constant (max response length T)
+            # loss = 1.25 / 5 = 0.25  (if T=5)
+            #
+            # This removes the length bias from token-sum: since we divide by a constant T
+            # (not by each sequence's actual length), the relative contribution of sequences
+            # stays equal, and the gradient magnitude is normalized to a stable range.
+            # Combined with norm_adv_by_std_in_grpo=False, this is the full Dr.GRPO recipe.
             if loss_scale_factor is None:
-                horizon = loss_mask.shape[-1]
+                horizon = loss_mask.shape[-1]  # T (max response length)
                 loss_scale_factor = horizon
             loss /= loss_scale_factor
+
     elif loss_agg_mode == "seq-mean-token-mean":
-        seq_mask = torch.sum(loss_mask, dim=-1)  # per-sequence token count
-        seq_losses = torch.sum(loss_mat * loss_mask, dim=-1) / (seq_mask + 1e-8)  # token-mean
-        seq_mask = (seq_mask > 0).float()  # exclude fully masked sequences
+        # First average tokens within each sequence, then average across sequences
+        # seq0_loss = (0.5*3) / 3 = 0.5,  seq1_loss = (0.2*5) / 5 = 0.2
+        # loss = (0.5 + 0.2) / 2 = 0.35
+        #
+        # Effect: each sequence contributes equally AND length is fully normalized out.
+        # For GRPO (same advantage per token), this just recovers the original advantage value.
+        # Difference from token-mean: token-mean weights by length, this doesn't.
+        # Difference from seq-mean-token-sum-norm: that divides by max_length T (constant),
+        #   this divides by actual_length (variable) — truly length-invariant per sequence.
+        seq_mask = torch.sum(loss_mask, dim=-1)  # shape (B,), per-seq valid token count
+        seq_losses = torch.sum(loss_mat * loss_mask, dim=-1) / (seq_mask + 1e-8)  # shape (B,), per-seq mean
+        seq_mask = (seq_mask > 0).float()  # shape (B,), exclude fully masked seqs
         if global_batch_size is None:
             if dp_size > 1:
                 raise ValueError("global_batch_size is required when dp_size > 1")
             global_batch_size = seq_mask.sum()
-        loss = verl_F.masked_sum(seq_losses, seq_mask) / global_batch_size * dp_size  # seq-mean
+        loss = verl_F.masked_sum(seq_losses, seq_mask) / global_batch_size * dp_size
     else:
         raise ValueError(f"Invalid loss_agg_mode: {loss_agg_mode}")
 
@@ -2114,72 +2309,190 @@ def compute_value_loss(
         vf_clipfrac (float):
             Fraction of elements where the clipped loss was used.
     """
+    # ---- PPO value clip: pessimistic trust region around V_old ----
+    #
+    # Trust region = [V_old - ε, V_old + ε]. Critic is updated for several PPO epochs
+    # on the same batch; without a constraint, vpreds could drift far from values (V_old)
+    # and destabilize advantage estimates. We bound how far it can move per step.
+    #
+    # Branches (both shape (B, T)):
+    #   losses1 = (vpreds       - returns)²    "trust the raw prediction"
+    #   losses2 = (vpredclipped - returns)²    "assume vpreds got clamped to ±ε"
+    #
+    # max(losses1, losses2) = pessimistic pick (the larger loss).
+    # Combined with clamp's "zero gradient at the clipped boundary", this gives an
+    # asymmetric trust-region behavior:
+    #
+    #   ┌──────────────────────┬──────────────────────┬─────────────────────┐
+    #   │ Case                 │ max picks            │ Gradient effect     │
+    #   ├──────────────────────┼──────────────────────┼─────────────────────┤
+    #   │ inside trust region  │ either (equal)       │ normal MSE update   │
+    #   │ outside, toward      │ losses2 (clipped,    │ ZERO grad → STOP    │
+    #   │   returns (overshoot)│  bigger because      │  (clamp boundary    │
+    #   │                      │  clipped is held back│   has ∂out/∂in = 0) │
+    #   │ outside, away from   │ losses1 (raw, bigger │ normal grad → PULL  │
+    #   │   returns (wrong way)│  because raw is far) │  BACK toward returns│
+    #   └──────────────────────┴──────────────────────┴─────────────────────┘
+    #
+    # Net effect: critic is allowed to update freely inside the trust region; once it
+    # leaves, it can only come back, never go further. This mirrors actor's PPO ratio
+    # clip (which uses min on a negative loss; same trust-region idea, opposite sign).
+
+    # vpredclipped: vpreds clamped to [values - ε, values + ε], shape (B, T)
+    # When clamp fires, output is constant w.r.t. vpreds → ∂vpredclipped/∂vpreds = 0
     vpredclipped = verl_F.clip_by_value(vpreds, values - cliprange_value, values + cliprange_value)
-    vf_losses1 = (vpreds - returns) ** 2
-    vf_losses2 = (vpredclipped - returns) ** 2
-    clipped_vf_losses = torch.max(vf_losses1, vf_losses2)
+
+    vf_losses1 = (vpreds - returns) ** 2          # raw MSE,           shape (B, T)
+    vf_losses2 = (vpredclipped - returns) ** 2    # clamped-side MSE,  shape (B, T)
+
+    # Pessimistic choice (see table above). For each token, picks whichever branch
+    # represents the "worst-case loss given the trust region constraint".
+    clipped_vf_losses = torch.max(vf_losses1, vf_losses2)  # shape (B, T)
+
+    # 0.5 is the standard PPO coefficient (makes ∂(0.5·x²)/∂x = x clean).
+    # agg_loss masks PAD positions and reduces (B, T) → scalar via loss_agg_mode
+    # (default "token-mean": equal weight per valid token, length-invariant).
     vf_loss = 0.5 * agg_loss(loss_mat=clipped_vf_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode)
+
+    # Monitoring metric: fraction of valid tokens where the clipped branch was active
+    # (losses2 > losses1 means clamp fired AND we're in the "overshoot" regime).
+    # Healthy range ≈ 0.05–0.2; near 0 = cliprange too loose, near 0.5+ = critic
+    # is jumping around, lr or cliprange likely needs tuning.
     vf_clipfrac = verl_F.masked_mean(torch.gt(vf_losses2, vf_losses1).float(), response_mask)
     return vf_loss, vf_clipfrac
 
 
 def kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTensor, kl_penalty) -> torch.FloatTensor:
-    """Compute KL divergence given logprob and ref_logprob. Optionally using straight through to bind k2 on other
-    kl penalty compute method for unbiased KL gradient estimation.
-    See more description in http://joschu.net/blog/kl-approx.html
+    """Compute KL divergence given logprob and ref_logprob. Optionally use a straight-through
+    estimator (STE) so the forward value comes from one estimator (e.g. k3) while the backward
+    gradient comes from k2 — chosen because k2 is the only estimator with an unbiased
+    gradient w.r.t. true KL.
+
+    See http://joschu.net/blog/kl-approx.html for the math behind k1/k2/k3 estimators.
 
     Args:
-        logprob:
-        ref_logprob:
+        logprob:      shape (B, T), log π_θ(token|context) from the current actor
+        ref_logprob:  shape (B, T), log π_ref(token|context) from the frozen reference model
+        kl_penalty:   str, one of:
+                        "kl" / "k1"          → k1 estimator (value path only)
+                        "abs"                → |r| (not a real KL estimator)
+                        "mse" / "k2"         → k2 estimator (value AND gradient path)
+                        "low_var_kl" / "k3"  → k3 estimator (value path only)
+                        "k1+" / "k3+" / ...  → STE: forward uses the chosen estimator,
+                                               backward uses k2's gradient
 
     Returns:
-        kl_estimate
+        kl_estimate: shape (B, T), per-token KL estimate
     """
+    # forward_score: shape (B, T), the value-path estimator (whatever the user picked)
     forward_score = kl_penalty_forward(logprob, ref_logprob, kl_penalty)
+
+    # No STE needed when:
+    #   1. kl_penalty doesn't end with "+", OR
+    #   2. kl_penalty IS k2 itself — k2's gradient is already unbiased, no need to swap
     if not kl_penalty.endswith("+") or kl_penalty in ("mse", "k2"):
         return forward_score
 
-    """
-    The expectation of k1 and k3 estimator is the expected value of KL, but the expected gradient of k1 and k3
-    estimator is not the expected gradient of KL. On the other hand k2 estimator gives right gradient estimator, 
-    so we use a straight through trick here if the kl_penalty method ends with '+', e.g., k3+. 
-    """
+    # ---- Straight-through estimator (STE) path ----
+    #
+    # Why: k1 and k3 are unbiased estimators of KL VALUE, but their GRADIENTS w.r.t.
+    # logprob are biased — the expected gradient is not the gradient of true KL.
+    # k2's value is biased (≈ KL/2), but its gradient is unbiased. We want the best
+    # of both worlds: k3's value (for accurate KL metrics) + k2's gradient (for
+    # correct optimization direction).
+    #
+    # backward_score: shape (B, T), the k2 estimator value
+    # k2 = 0.5 · (logprob - ref_logprob)²
     backward_score = 0.5 * (logprob - ref_logprob).square()
 
+    # ---- The STE expression ----
+    #
+    # Numerically:
+    #   result_value = backward_score - backward_score + forward_score = forward_score
+    # because `x - x.detach()` equals 0 in value (detach shares the same memory/value).
+    #
+    # Gradient-wise:
+    #   ∂result/∂logprob = ∂backward_score/∂logprob   (only the non-detached term contributes)
+    # because both `.detach()` calls return leaf tensors with requires_grad=False, so
+    # autograd's reverse traversal stops there. Only the first `backward_score` has a
+    # live grad_fn pointing back to logprob, so its gradient (∇k2 = r = logprob - ref_logprob)
+    # is what flows back through chain rule to the model parameters.
+    #
+    # Result: value path = k3 (or whatever forward picked), gradient path = k2.
     return backward_score - backward_score.detach() + forward_score.detach()
 
 
 def kl_penalty_forward(logprob: torch.FloatTensor, ref_logprob: torch.FloatTensor, kl_penalty) -> torch.FloatTensor:
-    """Compute KL divergence given logprob and ref_logprob.
+    """Per-token KL divergence estimator. Returns the FORWARD (value) estimate only —
+    gradient-side correction (STE) is handled by the wrapper kl_penalty().
+
+    Why we don't compute true KL: real KL = Σ_v π_θ(v|s) · log(π_θ(v|s)/π_ref(v|s))
+    requires summing over the entire vocabulary V (often >100k) at every token —
+    way too expensive. Instead we use Schulman's sample-based estimators that only
+    need logprob at the actually-sampled token.
+
+    Let r = logprob - ref_logprob = log(π_θ / π_ref), evaluated at the sampled token.
+    Then for each estimator:
+        k1(r) = r                    unbiased value, can be negative, high variance
+        k2(r) = 0.5 · r²             biased value (≈ KL/2), always ≥ 0, UNBIASED gradient
+        k3(r) = exp(-r) + r - 1      unbiased value, always ≥ 0, low variance
+        abs(r) = |r|                 not a real KL, just a magnitude
+
     Copied from https://github.com/huggingface/trl/blob/main/trl/trainer/ppo_trainer.py#L1104
-    See more description in http://joschu.net/blog/kl-approx.html
+    See http://joschu.net/blog/kl-approx.html for the derivations.
 
     Args:
-        logprob:
-        ref_logprob:
+        logprob:      shape (B, T), log π_θ from current actor
+        ref_logprob:  shape (B, T), log π_ref from frozen reference model
+        kl_penalty:   str (with optional "+" suffix stripped by the caller)
 
     Returns:
-        kl_estimate
+        kl_estimate:  shape (B, T), per-token KL estimate, dtype same as logprob
     """
+    # k1: simplest, just the log ratio.
+    # logprob shape (B, T) - ref_logprob shape (B, T) → shape (B, T)
+    # CAN BE NEGATIVE when ref assigns higher prob than θ to the sampled token.
     if kl_penalty in ("kl", "k1"):
         return logprob - ref_logprob
 
+    # abs: not a proper KL estimator, just |r|. Always ≥ 0 but expectation
+    # is not KL — kept mostly for legacy/experimentation.
+    # shape (B, T)
     if kl_penalty == "abs":
         return (logprob - ref_logprob).abs()
 
+    # k2: 0.5 · r². Always ≥ 0. Value is biased (≈ true KL / 2 in the small-r limit),
+    # but the gradient w.r.t. logprob is the unbiased gradient of true KL — that's why
+    # the STE wrapper uses k2 specifically for the backward path.
+    # shape (B, T)
     if kl_penalty in ("mse", "k2"):
         return 0.5 * (logprob - ref_logprob).square()
 
-    # J. Schulman. Approximating kl divergence, 2020.
-    # # URL http://joschu.net/blog/kl-approx.html.
+    # k3: Schulman's "low-variance KL" estimator (J. Schulman, 2020).
+    # http://joschu.net/blog/kl-approx.html
+    # k3(r) = exp(-r) + r - 1, always ≥ 0, unbiased estimate of true KL,
+    # lower variance than k1. Most commonly used in PPO/GRPO.
     if kl_penalty in ("low_var_kl", "k3"):
+        # kl = -r = ref_logprob - logprob, shape (B, T)
         kl = ref_logprob - logprob
-        # For numerical stability
+        # Clamp BEFORE exp to avoid float32 overflow:
+        # exp(20) ≈ 4.85e8, exp(89) overflows to inf in float32.
+        # ±20 is conservative; in practice |r| should stay small during training.
         kl = torch.clamp(kl, min=-20, max=20)
+        # ratio = exp(-r) = π_ref(token) / π_θ(token), shape (B, T)
         ratio = torch.exp(kl)
-        kld = (ratio - kl - 1).contiguous()
+        # kld = exp(-r) + r - 1 = ratio - (-r) - 1 = ratio - kl - 1
+        # Note kl here is -r (sign flipped above), so `- kl` recovers `+ r`.
+        # .contiguous() ensures memory layout is compact for downstream ops.
+        # Theoretically kld ≥ 0, but numerical noise can push it slightly negative.
+        kld = (ratio - kl - 1).contiguous()  # shape (B, T)
+        # Final clamp for safety: in extreme cases (e.g. very different logprobs)
+        # k3 can spike, which destabilizes training. ±10 caps the per-token KL.
         return torch.clamp(kld, min=-10, max=10)
 
+    # "full" would compute true KL by summing over the entire vocabulary at each
+    # token. Requires per-position logits of shape (B, T, V) instead of just the
+    # logprob of the sampled token (B, T) — too memory-expensive in practice.
     if kl_penalty == "full":
         # so, here logprob and ref_logprob should contain the logits for every token in vocabulary
         raise NotImplementedError

@@ -214,9 +214,22 @@ class HermeneuticAgentLoop(ToolAgentLoop):
                     cycle_done = True
 
                 else:
-                    # No valid action — terminate
-                    terminated = True
-                    cycle_done = True
+                    # Invalid action — append feedback and let model retry (like SR1)
+                    feedback = (
+                        "\nMy previous action is invalid. "
+                        "If I want to search, I should use <tool_call> with a search query. "
+                        "If I want to refine the question, I should put the new question between <transform> and </transform>. "
+                        "If I want to give the final answer, I should put the answer between <answer> and </answer>. "
+                        "Let me try again.\n"
+                    )
+                    feedback_ids = self.tokenizer.encode(feedback, add_special_tokens=False)
+
+                    current_cycle_response_ids.extend(feedback_ids)
+                    current_cycle_response_mask.extend([0] * len(feedback_ids))
+                    current_cycle_logprobs.extend([0.0] * len(feedback_ids))
+                    total_response_tokens += len(feedback_ids)
+
+                    agent_data.prompt_ids = agent_data.prompt_ids + feedback_ids
 
         # Save final cycle
         if current_cycle_response_ids:
@@ -254,6 +267,15 @@ class HermeneuticAgentLoop(ToolAgentLoop):
                 final_response_ids.extend(cycle["response_ids"])
                 final_response_mask.extend(cycle["response_mask"])
                 final_logprobs.extend(cycle["logprobs"])
+
+        # Sample and print full trajectory (like SR1)
+        import random as _rnd
+        if _rnd.randint(1, 8) == 1:
+            _text = self.tokenizer.decode(final_response_ids[:max_total_response], skip_special_tokens=False)
+            print(f"[SAMPLE] cycles={num_cycles} transforms={len(transform_questions)}")
+            print(f"[SAMPLE] {_text[:800]}")
+            if transform_questions:
+                print(f"[SAMPLE] Qs: {transform_questions[:3]}")
 
         output = AgentLoopOutput(
             prompt_ids=final_prompt_ids,

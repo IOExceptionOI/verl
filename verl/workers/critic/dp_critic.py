@@ -151,6 +151,13 @@ class DataParallelPPOCritic(BasePPOCritic):
 
     @GPUMemoryLogger(role="dp critic", logger=logger)
     def compute_values(self, data: DataProto) -> torch.Tensor:
+        # Critic is an independent neural network (usually initialized from the same pretrained LLM)
+        # that learns to predict: "from this token position onward, how much total reward do we expect?"
+        # Output shape: (B, T), one scalar value V(t) per token position.
+        # e.g. values = [3.2, 2.8, 1.5, 0.8, 0, 0] — value decreases as we approach the end
+        # These values are used by GAE to compute TD errors: δ_t = r_t + γ*V(t+1) - V(t)
+        # Unlike token_level_rewards (which only has reward at the last token),
+        # values are dense — every token position has a prediction from the critic.
         self.critic_module.eval()
         micro_batch_size = data.meta_info["micro_batch_size"]
         use_dynamic_bsz = data.meta_info["use_dynamic_bsz"]
@@ -170,14 +177,15 @@ class DataParallelPPOCritic(BasePPOCritic):
         else:
             micro_batches = data.split(micro_batch_size)
 
+        # Forward pass through critic network in micro-batches (for memory efficiency)
         values_lst = []
         for micro_batch in micro_batches:
             micro_batch = micro_batch.to(get_device_id())
             model_inputs = {**micro_batch.batch, **micro_batch.non_tensor_batch}
             with torch.no_grad():
-                values = self._forward_micro_batch(model_inputs)
+                values = self._forward_micro_batch(model_inputs)  # shape (micro_B, T)
             values_lst.append(values)
-        values = torch.concat(values_lst, dim=0)
+        values = torch.concat(values_lst, dim=0)  # shape (B, T)
 
         if use_dynamic_bsz:
             values = restore_dynamic_batch(values, batch_idx_list)
@@ -185,8 +193,10 @@ class DataParallelPPOCritic(BasePPOCritic):
         if "response_mask" in data.batch:
             response_mask = data.batch["response_mask"]
             response_mask = response_mask.to(values.device)
-            values = values * response_mask  # Only action tokens have values
-        return values
+            # Zero out PAD positions — only valid response tokens should have values
+            # e.g. [3.2, 2.8, 1.5, 0.8, 0, 0] after masking with [1, 1, 1, 1, 0, 0]
+            values = values * response_mask
+        return values  # shape (B, T)
 
     @GPUMemoryLogger(role="dp critic", logger=logger)
     def update_critic(self, data: DataProto):
