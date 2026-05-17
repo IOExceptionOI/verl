@@ -59,18 +59,17 @@ def has_valid_transform(solution_str):
     return any(len(m.group(1).strip()) > 0 for m in matches)
 
 
-def get_format_score(step: int, warmup: int = 100, decay: int = 200, max_value: float = 0.05) -> float:
+def get_format_score(step: int) -> float:
     """
     Staged format_score schedule:
-    - step 0 to warmup: constant max_value (bootstrap base model)
-    - warmup to warmup+decay: linear decay to 0
-    - after: 0 (pure outcome reward)
+    - step 0   - 100: 0.1   (full bootstrap)
+    - step 100 - 200: 0.05  (half — gradual handoff)
+    - step 200+      : 0     (pure outcome reward)
     """
-    if step < warmup:
-        return max_value
-    if step < warmup + decay:
-        ratio = (step - warmup) / decay
-        return max_value * (1.0 - ratio)
+    if step < 100:
+        return 0.1
+    if step < 200:
+        return 0.05
     return 0.0
 
 
@@ -81,41 +80,30 @@ def compute_score(
     extra_info=None,
     correct_score=1.0,
     transform_bonus=0.1,
-    format_max=0.05,
-    format_warmup=100,
-    format_decay=200,
     **kwargs,
 ):
     """
     Outcome-based reward with staged format_score.
 
-    Args:
-        solution_str: trajectory text
-        ground_truth: dict with 'target'
-        extra_info: dict; if HermeneuticRewardManager is used, includes 'global_steps'
-        correct_score: reward for correct answer (1.0)
-        transform_bonus: extra reward if correct AND used <transform> (+0.1)
-        format_max: format reward at step 0 (0.05)
-        format_warmup: number of constant-format_max steps before decay (100)
-        format_decay: steps over which format_max linearly decays to 0 (200)
+    Reward structure:
+    - correct answer + used <transform>  → 1.1
+    - correct answer (no transform)      → 1.0
+    - has <answer> tag but wrong         → format_score (staged: 0.1 → 0.05 → 0)
+    - no <answer> tag                    → 0
 
-    Returns:
-        reward in [0, correct_score + transform_bonus]
+    NOTE: anti-hack (multi-<answer> → 0) is removed. Base models sometimes
+    emit several <answer> tags inline; extract_solution takes the LAST one,
+    so taking format_score for "model put SOME answer in" is fine.
+
+    extra_info["global_steps"] is required (injected by HermeneuticRewardManager).
     """
     step = (extra_info or {}).get("global_steps", 0) or 0
-    format_score = get_format_score(step, format_warmup, format_decay, format_max)
+    format_score = get_format_score(step)
 
     answer = extract_solution(solution_str)
     has_transform = has_valid_transform(solution_str)
-    answer_tag_count = solution_str.count("<answer>")
 
     do_print = random.randint(1, 32) == 1
-
-    # Anti-hack: multiple <answer> → 0
-    if answer_tag_count > 1:
-        if do_print:
-            print(f"[REWARD] HACK (multi_answer={answer_tag_count}, step={step}) → 0")
-        return 0.0
 
     if answer is None:
         if do_print:
