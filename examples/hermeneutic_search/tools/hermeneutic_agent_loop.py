@@ -296,18 +296,22 @@ class HermeneuticAgentLoop(ToolAgentLoop):
             if transform_questions:
                 print(f"[SAMPLE] Qs: {transform_questions[:3]}")
 
+        # num_turns reflects actual cycle count (1-max_cycles).
+        # This appears in metrics as num_turns/min, max, mean — letting us track
+        # how many cycles trajectories actually use.
         output = AgentLoopOutput(
             prompt_ids=final_prompt_ids,
             response_ids=final_response_ids[:max_total_response],
             response_mask=final_response_mask[:max_total_response],
             multi_modal_data={},
             response_logprobs=final_logprobs[:max_total_response] if any(l != 0 for l in final_logprobs) else None,
-            num_turns=num_cycles * 2,
+            num_turns=num_cycles,
             metrics=metrics,
             routed_experts=None,
             extra_fields={
                 **agent_data.extra_fields,
                 "num_cycles": num_cycles,
+                "num_transforms": len(transform_questions),
                 "transform_questions": transform_questions,
                 # Explicit cycle boundaries for HermeneuticAgentLoopWorker
                 "cycle_boundary_positions": cycle_boundary_positions,

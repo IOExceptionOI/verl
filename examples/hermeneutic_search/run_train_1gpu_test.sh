@@ -24,7 +24,7 @@ python3 -m examples.hermeneutic_search.main_hermeneutic \
     data.train_batch_size=8 \
     data.val_batch_size=8 \
     data.max_prompt_length=2048 \
-    data.max_response_length=1500 \
+    data.max_response_length=3000 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
     data.return_raw_chat=True \
@@ -54,7 +54,9 @@ python3 -m examples.hermeneutic_search.main_hermeneutic \
     algorithm.use_kl_in_reward=False \
     trainer.critic_warmup=0 \
     trainer.val_before_train=False \
-    trainer.test_freq=-1 \
+    trainer.test_freq=50 \
+    trainer.log_val_generations=5 \
+    data.val_max_samples=32 \
     'trainer.logger=[console,wandb]' \
     trainer.project_name=HermeneuticSearch \
     trainer.experiment_name=hs-3b-base-clean-refactor \
