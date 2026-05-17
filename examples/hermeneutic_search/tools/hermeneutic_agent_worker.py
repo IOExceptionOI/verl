@@ -27,72 +27,70 @@ from verl.experimental.agent_loop.agent_loop import (
 def compute_position_ids_for_cycles(
     attention_mask: torch.Tensor,
     cycle_boundaries: list[int],
-    prompt_length: int,
+    response_start_abs: int,
 ) -> torch.Tensor:
     """
     Compute position_ids with per-cycle reset.
 
-    For each sample:
-    - Left-padded prompt positions: zeros
-    - Cycle 0 (prompt + cycle_0_response): standard increasing positions starting from 0
-    - Cycle i (i>=1): positions reset to 0 at cycle boundary
-
     Args:
-        attention_mask: [bsz, seq_len], 1 for content, 0 for left/right padding
-        cycle_boundaries: list of int, position in response_ids where each cycle starts.
-                          E.g., [0, 250] means cycle 0 starts at response[0], cycle 1 at response[250].
-        prompt_length: length of the prompt portion in the input_ids (left-padded part length).
+        attention_mask: [bsz, seq_len], 1 for content, 0 for left/right padding.
+            Final layout: [left_pad..., prompt_tokens, response_tokens, right_pad...]
+            with response starting at absolute index `response_start_abs`.
+        cycle_boundaries: positions in response_ids where each cycle starts
+            (relative to the response, not the full input).
+            E.g., [0, 250] means cycle 0 at response[0], cycle 1 at response[250].
+        response_start_abs: absolute index in input_ids where the response begins.
+            This is the PADDED prompt width (e.g. rollout_config.prompt_length),
+            NOT the unpadded prompt length.
 
     Returns:
-        position_ids: [bsz, seq_len], int64
+        position_ids: [bsz, seq_len], int64. Each cycle's tokens have positions
+        starting from 0. Padded positions stay 0 (will be dropped by unpad_input).
     """
     bsz, seq_len = attention_mask.shape
     position_ids = torch.zeros_like(attention_mask, dtype=torch.long)
 
-    # Per-sample computation (cycle_boundaries can differ per sample if we ever batch
-    # different trajectories; for now assumed same-shape).
     for b in range(bsz):
         mask = attention_mask[b]
-        # Effective sequence: indices where mask == 1
         valid_indices = mask.nonzero(as_tuple=True)[0]
         if valid_indices.numel() == 0:
             continue
-
         first_valid = valid_indices[0].item()
-        # Cycle 0 = prompt + first response cycle.
-        # Absolute positions in the input_ids: [first_valid, first_valid+1, ...]
-        # Cycle i's absolute start position in input_ids:
-        #   prompt_end + cycle_boundaries[i]
-        # where prompt_end = first_valid + (prompt_length - left_pad_count)
-        #                  = position where response starts.
+        last_valid = valid_indices[-1].item()
 
-        # Within the input_ids sequence:
-        # - input_ids[: prompt_length] = left padding + prompt
-        # - input_ids[prompt_length :] = response (right-padded)
-        # The actual prompt content begins at first_valid (left-padding ends there).
-        # The response begins at index `prompt_length` (always).
-
-        response_start = prompt_length  # absolute index in input_ids
-
-        # Cycle starts within input_ids:
-        # cycle 0 starts at first_valid (the prompt's first non-pad token)
-        # cycle i (i>=1) starts at response_start + cycle_boundaries[i]
-        cycle_start_in_input = [first_valid]
+        # Filter boundaries: must be within valid response region.
+        # Cycle i (i >= 1) starts at response_start_abs + cb.
+        # We need that position to be valid (within last_valid).
+        # Cycle 0 always starts at first_valid (the prompt's first non-pad token).
+        valid_starts = [first_valid]
         for cb in cycle_boundaries[1:]:
-            cycle_start_in_input.append(response_start + cb)
+            absolute_start = response_start_abs + cb
+            # Must be (a) within the sample, (b) at a valid (mask=1) position,
+            # and (c) strictly after the previous start (monotonic).
+            if (
+                absolute_start <= last_valid
+                and mask[absolute_start].item() == 1
+                and absolute_start > valid_starts[-1]
+            ):
+                valid_starts.append(absolute_start)
 
-        # Assign positions: within each cycle, positions go 0, 1, 2, ...
-        for ci, start in enumerate(cycle_start_in_input):
-            # End of this cycle: start of next cycle, or end of valid content
-            if ci + 1 < len(cycle_start_in_input):
-                end = cycle_start_in_input[ci + 1]
+        # Assign positions: within each cycle's segment, positions go 0, 1, 2, ...
+        for ci, start in enumerate(valid_starts):
+            if ci + 1 < len(valid_starts):
+                end = valid_starts[ci + 1]
             else:
-                # Last valid token + 1
-                end = valid_indices[-1].item() + 1
+                end = last_valid + 1
 
             length = end - start
             if length > 0:
-                position_ids[b, start:end] = torch.arange(length, dtype=torch.long)
+                # Only write positions where attention_mask is actually 1
+                # (defensive: avoids putting positive position ids on right-pad).
+                segment_mask = mask[start:end].bool()
+                positions = torch.arange(length, dtype=torch.long)
+                # Where mask is 1, use the position; where mask is 0, keep 0.
+                position_ids[b, start:end] = torch.where(
+                    segment_mask, positions, torch.zeros_like(positions)
+                )
 
     return position_ids
 
@@ -106,25 +104,35 @@ class HermeneuticAgentLoopWorker(AgentLoopWorker):
     """
 
     async def _agent_loop_postprocess(self, output, validate, **kwargs):
-        # 1. Let parent do standard padding / mask construction
+        # 1. Let parent do standard padding / mask construction.
         internal = await super()._agent_loop_postprocess(output, validate, **kwargs)
 
-        # 2. Get cycle boundaries from agent loop's extra_fields
+        # 2. Get cycle boundaries from agent loop's extra_fields.
         boundaries = output.extra_fields.get("cycle_boundary_positions")
-        prompt_len = output.extra_fields.get("prompt_length")
 
-        if boundaries is None or len(boundaries) <= 1 or prompt_len is None:
-            # Single-cycle trajectory — no reset needed. Standard position_ids works.
+        if boundaries is None or len(boundaries) <= 1:
+            # Single-cycle trajectory — no reset needed.
             return internal
 
-        # 3. Recompute position_ids with per-cycle reset
+        # 3. The response starts at the PADDED prompt width, not the unpadded length.
+        #    `internal.prompt_ids` is left-padded to `rollout_config.prompt_length`.
+        response_start_abs = internal.prompt_ids.shape[1]
+
+        # 4. Filter boundaries beyond the actual response length.
+        #    response_ids was truncated to max_total_response in agent loop,
+        #    but boundaries may still point past that.
+        response_length = internal.response_ids.shape[1]
+        boundaries_clipped = [b for b in boundaries if 0 <= b < response_length]
+        if len(boundaries_clipped) <= 1:
+            # After clipping, only one cycle survives — no reset needed.
+            return internal
+
+        # 5. Recompute position_ids with per-cycle reset.
         new_position_ids = compute_position_ids_for_cycles(
-            internal.attention_mask, boundaries, prompt_len
+            internal.attention_mask, boundaries_clipped, response_start_abs
         )
 
-        # Apply to the internal output
         internal.position_ids = new_position_ids
-
         return internal
 
 
