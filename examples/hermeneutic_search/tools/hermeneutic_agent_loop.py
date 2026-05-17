@@ -37,6 +37,30 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
 
+_CLOSE_TAGS = ("</tool_call>", "</transform>", "</answer>")
+
+
+def truncate_after_first_tag(text: str) -> tuple[str, bool]:
+    """SR1-style postprocess: cut after the first close tag found.
+
+    Mirrors Search-R1's `_postprocess_responses`. Without proper stop sequences
+    (which sglang + skip_tokenizer_init=True doesn't support well), the model
+    can keep generating after </answer>. This trims everything past the first tag.
+
+    Returns (truncated_text, was_truncated).
+    """
+    earliest_end = -1
+    for tag in _CLOSE_TAGS:
+        idx = text.find(tag)
+        if idx != -1:
+            end = idx + len(tag)
+            if earliest_end == -1 or end < earliest_end:
+                earliest_end = end
+    if earliest_end == -1:
+        return text, False
+    return text[:earliest_end], True
+
+
 def parse_hermeneutic_action(text: str) -> tuple:
     """Parse model output — strict format only."""
     # 1. <tool_call>...</tool_call> for search
@@ -79,14 +103,9 @@ class HermeneuticAgentLoop(ToolAgentLoop):
         print("[HermeneuticAgentLoop] run() invoked")
         messages = list(kwargs["raw_prompt"])
 
-        # Inject stop sequences so the model halts at the END of any action tag.
-        # no_stop_trim=True keeps the closing tag in the output so our reward regex
-        # (which requires </answer>) can match.
-        # Without this, base models without strong EOS habit will spam
-        # <answer>X</answer><answer>X</answer>... until max_new_tokens.
+        # NOTE: stop sequences temporarily disabled due to compatibility issue.
+        # TODO: re-enable when fixed.
         sampling_params = dict(sampling_params)
-        sampling_params["stop"] = ["</answer>", "</transform>", "</tool_call>"]
-        sampling_params["no_stop_trim"] = True
 
         multi_modal_data = await self.process_vision_info(messages)
         images = multi_modal_data.get("images")
@@ -149,6 +168,20 @@ class HermeneuticAgentLoop(ToolAgentLoop):
                 response_ids = list(output.token_ids)
                 response_logprobs = list(output.log_probs) if output.log_probs else [0.0] * len(response_ids)
 
+                # SR1-style postprocess: truncate at first close tag.
+                # Without proper stop sequences, base models keep generating after
+                # </answer>/. We re-tokenize the truncated text to get clean ids.
+                response_text_raw = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+                response_text_trim, was_truncated = truncate_after_first_tag(response_text_raw)
+                if was_truncated:
+                    response_ids = self.tokenizer.encode(response_text_trim, add_special_tokens=False)
+                    # Re-align logprobs length (we lose actual per-token logprobs after trimming,
+                    # but they're only used for diagnostics here — actor recomputes them in compute_log_prob).
+                    if len(response_logprobs) >= len(response_ids):
+                        response_logprobs = response_logprobs[: len(response_ids)]
+                    else:
+                        response_logprobs = response_logprobs + [0.0] * (len(response_ids) - len(response_logprobs))
+
                 current_cycle_response_ids.extend(response_ids)
                 current_cycle_response_mask.extend([1] * len(response_ids))
                 current_cycle_logprobs.extend(response_logprobs)
@@ -156,8 +189,8 @@ class HermeneuticAgentLoop(ToolAgentLoop):
 
                 agent_data.prompt_ids = agent_data.prompt_ids + response_ids
 
-                # Parse action
-                response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+                # Parse action (use the trimmed text we just computed)
+                response_text = response_text_trim
                 action, content = parse_hermeneutic_action(response_text)
 
                 if action == "answer":
