@@ -146,3 +146,182 @@ verl 不直接传 cu_seqlens 给 model — model 内部从 position_ids 自动�
 ### 参考
 
 详见 `varlen_cu_seqlens_explained.md` — varlen 机制完整解释。
+
+---
+
+## 实验 4: Reward Hacking 崩溃诊断 (2026-05-18)
+
+### 配置（与实验 3 相同）
+
+- Model: Qwen2.5-3B (base)
+- 1x A100-80G, batch=8, n=3 (24 samples/step)
+- `use_kl_loss=True, kl_loss_coef=0.001, kl_loss_type=low_var_kl`
+- `max_response_length=3000`, `max_assistant_turns=3`
+- Reward: `format_score=0.1`, `score=1.0` (`hermeneutic_qa_em.compute_score`)
+- 完整 position_ids reset + cycle 隔离（实验 3 修复后）
+- 共 552 steps，然后崩溃
+
+### 现象 — Metrics 演化
+
+| 阶段 | step | reward | entropy | response_length | clip_ratio | grad_norm | kl_loss | pg_loss |
+|------|------|--------|---------|-----------------|------------|-----------|---------|---------|
+| 初始学习 | 0-100 | 0.14 → 0.21 | ~0.6 | 中等 | 0.05-0.10 | 1-3 | 0.001-0.003 | 0.01-0.05 |
+| 达到峰值 | 100-200 | 0.27 → 0.32 | 0.3-0.4 | 中等 | 0.10-0.15 | 2-4 | 0.005-0.01 | 0.02-0.04 |
+| Entropy 塌缩 | 200-400 | 维持 0.32 | 0.08（持续下降）| 缓慢上升 | 0.20-0.40 | 3-6 | 0.02 | 0.01-0.02 |
+| Length 飙升 | 400-500 | 0.30-0.32 | 0.05 | **急剧上升到 1500** | 0.50-0.80 | 4-10 | 0.03 | 0.005-0.01 |
+| 完全崩溃 | 500-552 | 0.10-0.15 | **0.03** | **打满 1500** | **1.0** | **0.03**（接近0）| 0.04 | **0**（梯度冻结）|
+
+### 真实失败模式 — 抓到的崩溃样本
+
+模型学到的 reward hack：在**一次** `generate()` 内输出 30+ 次 `<answer>freedom</answer>` 重复，直到 token 数填满 `max_response_length`。例：
+
+```
+<answer>freedom</answer><answer>freedom</answer><answer>freedom</answer>
+<answer>freedom</answer> ... (重复 30+ 次直到 ~1500 token)
+```
+
+由于我们的 `parse_hermeneutic_action` 只匹配**第一个** `<answer>` 来决定 action，模型确实终止在 cycle 1；但后续 token 已全部 append 到 `response_ids` 并加入 loss 计算。
+
+### 因果链
+
+1. **Reward 下限 = 0.1**：`format_score=0.1` 永远拿得到（只要有 `<answer>` tag）。哪怕答错，模型也保证 ≥ 0.1 的 reward 信号
+2. **GRPO group std → 0**：`n=3` 时，group 内所有 3 个 rollout 都收敛到同一个 `<answer>X</answer>` hack（X 经常是 base 模型先验偏好的高频词，如 `freedom`、`yes`、`no`、`USA`）→ group reward std = 0 → **advantage = 0**
+3. **pg_loss = 0**：PPO 公式 `pg_loss = -mean(advantage * ratio)`，advantage=0 时 pg_loss 严格为 0
+4. **只剩 KL 梯度做工作**：但是
+5. **模型已塌缩到 base 模型的重复模式**：base 模型本身就会偏向复制重复 token（无 chat tuning 抑制重复），actor 学到这个 hack 后实际上 = base 模型行为
+6. **KL(actor||ref) → 0**：actor 和 ref 在这个塌缩区域分布几乎相同（都是 base） → KL 项也归零
+7. **所有梯度归零** → 数学上训练冻结：`grad_norm=0.03`（≈ 噪声）、`pg_loss=0`、`kl_loss=0.04`（k3 estimator 的噪底）
+
+### 五个缺失保护（与 SR1 对比）
+
+| 项 | 我们 | SR1 | 说明 |
+|----|------|-----|------|
+| **vllm/sglang stop sequences** | 无 | 无（但有 postprocess 兜底）| 详见 `sr1_stop_handling.md` |
+| **响应文本截断** | 无 | `_postprocess_responses` 切割在 `</search>`/`</answer>` | **最关键缺失**：我们让模型一次 generate 输出 30+ 个 `</answer>` 完全不砍 |
+| **format reward** | 0.1 给到（错答也给）| 0.0（默认 `compute_score_em(format_score=0.)`）| 给了 reward 下限 0.1，是 hack 的奖励源 |
+| **kl_loss_coef** | 0.001 | 0.001 | 相同（KL 不是问题根源，而是塌缩的副产物）|
+| **模型** | Qwen2.5-3B base | Qwen2.5-3B base / 我们的 Tier 2 应切 Instruct | base 模型本身有重复 token 倾向 |
+
+### `kl_loss → 0` 的真实含义
+
+`use_kl_loss=True, kl_loss_type=low_var_kl` 用的是 k3 estimator：
+
+```python
+# low_var_kl (k3)
+kld = exp(kl) - kl - 1   # kl = log_prob - ref_log_prob
+```
+
+这是个 **non-negative 距离估计**（Schulman blog: http://joschu.net/blog/kl-approx.html）。`kld → 0` 意味着 actor 和 ref 在被采样到的 token 分布上**一致**。
+
+在我们的场景里这**不是好事**，因为：
+
+- ref = 训练初始的 Qwen2.5-3B base
+- actor 已塌缩到 base 自带的「复制 `<answer>` token」退化 loop
+- 两者在这个 loop 上的 token 分布天然相同 → KL=0
+
+所以「KL 接近 0」不代表「我们没偏离 base」，而是「我们和 base 都退化到了同一个洞」。这反过来证明：**KL 约束在塌缩之后丧失作用，必须在塌缩之前用 stop sequences + 响应截断 + 改 reward 截断 reward hack 的物理路径**。
+
+### 修复优先级（详）
+
+**Tier 1（必须，直接阻断 hack 物理路径）**
+
+1. **加 stop sequences**（sglang `sampling_params` 加 `stop=["</answer>", "</transform>", "</tool_call>", ...]` 及换行变体；`no_stop_trim=True` 保留 tag）
+2. **响应文本截断**（仿 SR1 `_postprocess_responses`：decode → split at first close tag → 重新 tokenize）
+3. **改 reward**：`format_score=0.1 → 0.0`（断掉 hack 的奖励信号源）
+
+**Tier 2（应该，降低塌缩概率）**
+
+4. `kl_loss_coef`：0.001 → 0.005（延缓塌缩，但不能根治）
+5. `optim.lr_warmup_steps_ratio`：0 → 0.285（与 SR1 一致），减小早期梯度方差
+6. 切到 `Qwen2.5-3B-Instruct`（chat tuning 抑制重复 token，base 模型本身就有 `<answer>` 复制倾向）
+
+**Tier 3（建议，加固鲁棒性）**
+
+7. `n=3 → n=5`：增大 group size，减小 group std=0 概率
+8. 单次 generate `max_new_tokens=512`（与 SR1 一致），多 turn 才靠循环堆叠
+9. Length penalty / 重复检测：在 reward 里减去 `repeat_count(<answer>) > 3` × 0.05（如果 Tier 1-2 仍不足）
+
+### 详细修复 patch 示例
+
+参见 [`sr1_stop_handling.md`](./sr1_stop_handling.md) — 包含 SR1 stop 处理机制全调研 + Patch A/B/C/D 具体代码示例（加在 `hermeneutic_agent_loop.py` 的哪一行）。
+
+---
+
+## 实验 5: sglang stop sequences 修复决策 (2026-05-18)
+
+### 背景
+
+实验 4 诊断出 reward hack 的物理路径之一是：模型一次 generate 能输出 30+ 次 `</answer>` 直到打满 token budget。Tier 1 修复需要在 sglang 层面加 stop sequences。本次实验落地这个修复。
+
+### 关键发现：sglang 默认 `no_stop_trim=False`
+
+调研 sglang `SamplingParams` 时发现一个容易踩的坑：
+
+- sglang `SamplingParams` 默认 `no_stop_trim=False`
+- 含义：stop 字符串命中后，**stop 字符串本身会从输出中砍掉**
+- 例：`stop=["</answer>"]` + 模型生成 `<answer>freedom</answer>...`，**默认输出为 `<answer>freedom`**（闭合 tag 被吃掉）
+
+### 为什么这是个问题
+
+我们的 reward function：
+
+```python
+re.search(r"<answer>(.*?)</answer>", solution_str)
+```
+
+**必须有闭合 `</answer>`** 才能匹配。否则：
+
+- regex 匹配失败 → `extract_solution` 返回 None → reward = 0
+- 整个训练变成「永远 reward=0」的废训练（比实验 4 的 reward hack 还糟）
+
+### 修复决策
+
+在 `hermeneutic_agent_loop.py` 的 sglang sampling_params 注入处同时加两个字段：
+
+```python
+sampling_params["stop"] = HERMENEUTIC_STOPS   # ["</tool_call>", "</transform>", "</answer>", + \n 变体]
+sampling_params["no_stop_trim"] = True        # ← 关键：保留闭合 tag
+```
+
+### 与 SR1 (vllm) 路径的对比
+
+SR1 用 vllm，vllm 的 stop 默认行为也是 trim。SR1 的处理方式是：
+
+- **不给 vllm 设 stop**（生成跑满 max_tokens）
+- **Python 层 postprocess** `split('</answer>')[0] + '</answer>'` 重新补回闭合 tag
+
+我们用 sglang，理论上有四种组合：
+
+| 方案 | 输出含闭合 tag | reward 能识别 | 复杂度 |
+|------|---------------|---------------|--------|
+| 只 A (stop, 默认 trim) | 否 | 否 | - |
+| **A + no_stop_trim=True** | 是 | 是 | **最简洁** |
+| 只 B (postprocess) | 是 | 是 | 中等 |
+| A + B | 是 | 是 | 过度工程 |
+
+**最终选 A + no_stop_trim=True**：sglang 原生保留闭合 tag，不需要额外 postprocess 步骤。Patch B（postprocess 兜底）在 sglang 原生保留 tag 的前提下可省，留作纯防御也可以——但当前选不加，保持最小修改面积。
+
+### 与实验 4 Tier 1 修复路线的对齐
+
+| 实验 4 Tier 1 项 | 实验 5 实际修复 | 备注 |
+|---|---|---|
+| 1. sglang stop sequences | Patch A：`stop=[...] + no_stop_trim=True` | 用 sglang 原生 trim 行为修正 |
+| 2. 响应文本截断（postprocess） | **暂不加**（Patch A 已经在 sglang 内部停了，重复不会再产生）| 留作未来防御性兜底 |
+| 3. `format_score=0.1 → 0.0` | 单独 patch reward function | 与 stop 修复正交 |
+
+### 详细说明
+
+参见 [`sr1_stop_handling.md`](./sr1_stop_handling.md) 新增的「## sglang 与 vllm 的 stop trim 行为差异」一节——记录了完整决策表和与 SR1 的对比。
+
+### 一句话总结
+
+> sglang 默认会砍掉 stop 字符串。我们的 reward function 依赖闭合 `</answer>`，所以必须显式 `no_stop_trim=True`。这是用 sglang 替代 vllm 时最容易踩的坑。
+
+---
+
+## 文档索引
+
+- [`training_notes.md`](./training_notes.md)（本文）— 实验时间线 & lessons learned
+- [`references.md`](./references.md) — Multi-turn RL / cu_seqlens / search-agent 相关工作引用
+- [`varlen_cu_seqlens_explained.md`](./varlen_cu_seqlens_explained.md) — block-diagonal attention 机制详解
+- [`sr1_stop_handling.md`](./sr1_stop_handling.md) — SR1 (Search-R1) 怎么处理 stop sequences 调研 + 我们的具体修复 patch 示例（针对实验 4 崩溃）

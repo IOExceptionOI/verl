@@ -48,7 +48,7 @@ python3 -m examples.hermeneutic_search.main_hermeneutic \
     actor_rollout_ref.rollout.multi_turn.max_assistant_turns=3 \
     actor_rollout_ref.rollout.agent.default_agent_loop=hermeneutic_agent \
     actor_rollout_ref.rollout.agent.agent_loop_config_path=$AGENT_LOOP_CONFIG \
-    actor_rollout_ref.rollout.agent.agent_loop_manager_class=examples.hermeneutic_search.tools.hermeneutic_agent_worker.HermeneuticAgentLoopManager \
+    +actor_rollout_ref.rollout.agent.agent_loop_manager_class=examples.hermeneutic_search.tools.hermeneutic_agent_worker.HermeneuticAgentLoopManager \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.use_kl_in_reward=False \
@@ -68,5 +68,8 @@ python3 -m examples.hermeneutic_search.main_hermeneutic \
     actor_rollout_ref.rollout.multi_turn.tool_config_path=$TOOL_CONFIG \
     reward.custom_reward_function.path=/workspace/verl/verl/utils/reward_score/hermeneutic_qa_em.py \
     reward.custom_reward_function.name=compute_score \
+    reward.reward_manager.source=importlib \
+    reward.reward_manager.name=HermeneuticRewardManager \
+    reward.reward_manager.module.path=/workspace/verl/examples/hermeneutic_search/tools/hermeneutic_reward_manager.py \
     trainer.total_epochs=1 \
     "$@"
