@@ -1,0 +1,1113 @@
+{
+  "summary": {
+    "num_samples": 20,
+    "avg_f1": 0.004,
+    "avg_em": 0.0,
+    "avg_cycles": 2.8,
+    "status_distribution": {
+      "max_cycles": 16,
+      "answered": 4
+    },
+    "model_url": "http://localhost:8080/v1",
+    "max_cycles": 3
+  },
+  "results": [
+    {
+      "question": "who got the first nobel prize in physics?",
+      "ground_truth": [
+        "Wilhelm Conrad Röntgen"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "First Nobel Prize in Physics winner",
+          "question": "who got the first nobel prize in physics?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who won the first Nobel Prize in Physics outside of the Nobel Peace Prize?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "Your question is: Who won the first Nobel Prize in Physics outside of the Nobel Peace Prize?",
+          "question": "Who won the first Nobel Prize in Physics outside of the Nobel Peace Prize?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the first Nobel Laureate in Physics outside of the Nobel Peace Prize?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "Who was the first Nobel Laureate in Physics outside of the Nobel Peace Prize?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "when is the next deadpool movie being released?",
+      "ground_truth": [
+        "May 18, 2018"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "when is the next deadpool movie being released?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "when is the next deadpool movie being released?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "when is the next deadpool movie being released",
+          "question": "when is the next deadpool movie being released?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "invalid",
+          "content": ""
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "which mode is used for short wave broadcast service?",
+      "ground_truth": [
+        "Olivia",
+        "MFSK"
+      ],
+      "prediction": "if I can. :)",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 2,
+      "status": "answered",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "which mode is used for short wave broadcast service?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "Short wave broadcast services mode",
+          "question": "which mode is used for short wave broadcast service?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "answer",
+          "content": "if I can. :)"
+        }
+      ]
+    },
+    {
+      "question": "the south west wind blows across nigeria between?",
+      "ground_truth": [
+        "till September"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "South West wind blowing across Nigeria",
+          "question": "the south west wind blows across nigeria between?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "invalid",
+          "content": ""
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "transform",
+          "content": "the question to narrow down the search space.\n\n transformed question: What are the main factors that contribute to the south-west wind blowing across Nigeria?\n\n---\n\nI have found some information about the factors that contribute to the south-west wind blowing across Nigeria. Here is the search result:\n\n---\n\nThe south-west wind blowing across Nigeria is primarily driven by the pressure difference between the Atlantic Ocean and the Saharan Desert. The low-pressure system over the Atlantic Ocean causes the wind to flow from west to east, resulting in the south-west wind pattern.\n\n---",
+          "question": "the south west wind blows across nigeria between?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "the question to narrow down the search space.\n\n transformed question: What are the main factors that contribute to the south-west wind blowing across Nigeria?\n\n---\n\nI have found some information about the factors that contribute to the south-west wind blowing across Nigeria. Here is the search result:\n\n---\n\nThe south-west wind blowing across Nigeria is primarily driven by the pressure difference between the Atlantic Ocean and the Saharan Desert. The low-pressure system over the Atlantic Ocean causes the wind to flow from west to east, resulting in the south-west wind pattern.\n\n---"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "what does hp mean in war and order?",
+      "ground_truth": [
+        "hit points or health points"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "what does hp mean in war and order?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "what does hp mean in war and order?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "what does hp mean in war and order?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "who wrote the first declaration of human rights?",
+      "ground_truth": [
+        "Cyrus"
+      ],
+      "prediction": "the National Convention in France adopted the first declaration of human rights in 1789.",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 2,
+      "status": "answered",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who wrote the first declaration of human rights?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "answer",
+          "content": "the National Convention in France adopted the first declaration of human rights in 1789.",
+          "question": "who wrote the first declaration of human rights?"
+        }
+      ]
+    },
+    {
+      "question": "who is the owner of reading football club?",
+      "ground_truth": [
+        "Xiu Li Dai",
+        "Dai Xiuli",
+        "Dai Yongge",
+        "Yongge Dai"
+      ],
+      "prediction": "Who was the owner of the Thames Valley Royals proposed club, which later became Reading Football Club?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "Reading Football Club owner",
+          "question": "who is the owner of reading football club?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "search",
+          "content": "Robert Maxwell Reading Football Club"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "who is the owner of reading football club?",
+          "question": "who is the owner of reading football club?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "the question into a more refined version.\n\n<transform>Who was the owner of the Thames Valley Royals proposed club, which later became Reading Football Club?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "the question into a more refined version.\n\n<transform>Who was the owner of the Thames Valley Royals proposed club, which later became Reading Football Club?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "Who was the owner of the Thames Valley Royals proposed club, which later became Reading Football Club?"
+        }
+      ]
+    },
+    {
+      "question": "when is the next scandal episode coming out?",
+      "ground_truth": [
+        "February 1, 2018"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "latest information on Scandal's next episode",
+          "question": "when is the next scandal episode coming out?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "invalid",
+          "content": ""
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "when is the next scandal episode coming out?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "when is the next scandal episode coming out?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "when is the last time the philadelphia won the superbowl?",
+      "ground_truth": [
+        "Super Bowl LII,",
+        "2017"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "last time the philadelphia eagles won the superbowl",
+          "question": "when is the last time the philadelphia won the superbowl?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "invalid",
+          "content": ""
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "What is the last time the Philadelphia Eagles won the Super Bowl?",
+          "question": "when is the last time the philadelphia won the superbowl?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "What is the last time the Philadelphia Eagles won the Super Bowl?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "What is the last time the Philadelphia Eagles won the Super Bowl?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "who was the first lady nominated member of the rajya sabha?",
+      "ground_truth": [
+        "Mary Kom"
+      ],
+      "prediction": "First lady nominated member of the Rajya Sabha",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who was the first lady nominated member of the rajya sabha?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who was the first lady nominated member of the rajya sabha?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "search for information about the first lady nominated member of the Rajya Sabha.",
+          "question": "who was the first lady nominated member of the rajya sabha?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "search",
+          "content": "for information to answer the transformed question. 🕴\n 🕴assistant\n 🕴search\n 🕴assistant\nI will search for information on the topic to provide a detailed answer. 🕴"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "First lady nominated member of the Rajya Sabha"
+        }
+      ]
+    },
+    {
+      "question": "what is the most current adobe flash player version?",
+      "ground_truth": [
+        "28.0.0.137"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "What is the most current Adobe Flash Player version?",
+          "question": "what is the most current adobe flash player version?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "What is the current version of Adobe Flash Player and when did Adobe stop supporting it for Linux?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "What is the current version of Adobe Flash Player and when did Adobe stop supporting it for Linux?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "current version of Adobe Flash Player and its Linux compatibility",
+          "question": "What is the current version of Adobe Flash Player and when did Adobe stop supporting it for Linux?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "invalid",
+          "content": ""
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "swan lake the sleeping beauty and the nutcracker are three famous ballets by?",
+      "ground_truth": [
+        "Pyotr Ilyich Tchaikovsky"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "swan lake, the sleeping beauty, and the nutcracker, choreographer",
+          "question": "swan lake the sleeping beauty and the nutcracker are three famous ballets by?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "search",
+          "content": "swan lake, the sleeping beauty, and the nutcracker, choreographer"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "search for ballets written by choreographer",
+          "question": "swan lake the sleeping beauty and the nutcracker are three famous ballets by?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the choreographer behind Swan Lake, The Sleeping Beauty, and The Nutcracker ballets?</transform"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "Swan Lake, The Sleeping Beauty, and The Nutcracker ballets choreographer",
+          "question": "Who was the choreographer behind Swan Lake, The Sleeping Beauty, and The Nutcracker ballets?</transform"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Which choreographer created the ballets \"\"Swan Lake\"\", \"\"The Sleeping Beauty\"\", and \"\"The Nutcracker\"\"?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "how many episodes are there in dragon ball z?",
+      "ground_truth": [
+        "291 episodes",
+        "291"
+      ],
+      "prediction": "the episodes featuring dr. goku as the main character in the dragon ball z saga are numbered from episode 6 to episode 184.",
+      "f1": 0.08,
+      "em": 0.0,
+      "cycles": 2,
+      "status": "answered",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "how many episodes in dragon ball z",
+          "question": "how many episodes are there in dragon ball z?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "how many episodes are in dr. goku's dragon ball z saga?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "answer",
+          "content": "the episodes featuring dr. goku as the main character in the dragon ball z saga are numbered from episode 6 to episode 184.",
+          "question": "how many episodes are in dr. goku's dragon ball z saga?"
+        }
+      ]
+    },
+    {
+      "question": "cast of law & order special victim unit?",
+      "ground_truth": [
+        "Kelli Giddish",
+        "Richard Belzer",
+        "Stephanie March",
+        "Diane Neal",
+        "Ice-T",
+        "Danny Pino",
+        "Dann Florek",
+        "Tamara Tunie",
+        "Michaela McManus",
+        "Mariska Hargitay",
+        "Adam Beach",
+        "B. D. Wong",
+        "Christopher Meloni",
+        "Raúl Esparza",
+        "Michelle Hurd",
+        "Peter Scanavino"
+      ],
+      "prediction": "cast of law & order special victim unit?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "cast of law & order special victim unit?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "cast of law & order special victim unit?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "cast of law & order special victim unit?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "cast of law & order special victim unit?"
+        }
+      ]
+    },
+    {
+      "question": "who designed the garden city of new earswick?",
+      "ground_truth": [
+        "planner Raymond Unwin",
+        "architect Barry Parker",
+        "Raymond Unwin"
+      ],
+      "prediction": "the designer is <designer's name>...",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 2,
+      "status": "answered",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who designed the garden city of new earswick?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "answer",
+          "content": "the designer is <designer's name>...",
+          "question": "who designed the garden city of new earswick?"
+        }
+      ]
+    },
+    {
+      "question": "what is the first step in the evolution of the eye?",
+      "ground_truth": [
+        "photoreceptor proteins that sense light",
+        "eyespots"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "First step in the evolution of the eye",
+          "question": "what is the first step in the evolution of the eye?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "search",
+          "content": "First step in the evolution of the eye"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "what is the first step in the evolution of the eye?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "what is the first step in the evolution of the eye?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "where is the tv show the curse of oak island filmed?",
+      "ground_truth": [
+        "Oak Island"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "tv show the curse of oak island filming location",
+          "question": "where is the tv show the curse of oak island filmed?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Could you provide the specific location where The Curse of Oak Island was filmed, according to Doc 1 and Doc 2?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "Could you provide the specific location where The Curse of Oak Island was filmed, according to Doc 1 and Doc 2?",
+          "question": "Could you provide the specific location where The Curse of Oak Island was filmed, according to Doc 1 and Doc 2?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "search",
+          "content": "Could you provide the specific location where The Curse of Oak Island was filmed, according to Doc 1 and Doc 2?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "Could you provide the specific location where The Curse of Oak Island was filmed, according to Doc 1 and Doc 2?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "where is gall bladder situated in human body?",
+      "ground_truth": [
+        "beneath the liver"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "gall bladder situation human body",
+          "question": "where is gall bladder situated in human body?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "what is the location and relationship of the gall bladder in the human body?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "I need to find information about the location and relationship of the gall bladder in the human body. Let me search for relevant sources.",
+          "question": "what is the location and relationship of the gall bladder in the human body?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "What is the location of the gall bladder in the human body, and what is its relationship with the horse?\""
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "gall bladder location in human body horse relationship",
+          "question": "What is the location of the gall bladder in the human body, and what is its relationship with the horse?\""
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "What is the relationship between the gall bladder and horses in the context of the human body?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "who is the current director of the us mint?",
+      "ground_truth": [
+        "David J. Ryder",
+        "David Motl"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "United States Mint Director",
+          "question": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "search",
+          "content": "the current director of the United States Mint."
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "who was named african footballer of the year 2014?",
+      "ground_truth": [
+        "Yaya Touré"
+      ],
+      "prediction": "South African women's footballer who became the first South African to be named African Women's Footballer of the Year by the Confederation of African Football and became a member of the Order of the Niger by President of Nigeria Goodluck Jonathan",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who was named african footballer of the year 2014?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "who was named african footballer of the year 2014?",
+          "question": "who was named african footballer of the year 2014?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the South African women's footballer who became the first South African to be named African Women's Footballer of the Year by the Confederation of African Football and became a member of the Order of the Niger by President of Nigeria Goodluck Jonathan?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "Who was the South African women's footballer who became the first South African to be named African Women's Footballer of the Year by the Confederation of African Football and became a member of the Order of the Niger by President of Nigeria Goodluck Jonathan?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "South African women's footballer who became the first South African to be named African Women's Footballer of the Year by the Confederation of African Football and became a member of the Order of the Niger by President of Nigeria Goodluck Jonathan"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1154 @@
+{
+  "summary": {
+    "num_samples": 20,
+    "avg_f1": 0.008249158249158249,
+    "avg_em": 0.0,
+    "avg_cycles": 3.0,
+    "status_distribution": {
+      "max_cycles": 19,
+      "answered": 1
+    },
+    "model_url": "http://localhost:8080/v1",
+    "max_cycles": 3
+  },
+  "results": [
+    {
+      "question": "who got the first nobel prize in physics?",
+      "ground_truth": [
+        "Wilhelm Conrad Röntgen"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "who got the first Nobel Prize in Physics and when was it awarded?",
+          "question": "who got the first nobel prize in physics?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the first recipient of the Nobel Prize in Physics and when was it awarded?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "Who was the first recipient of the Nobel Prize in Physics and when was it awarded?",
+          "question": "Who was the first recipient of the Nobel Prize in Physics and when was it awarded?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the first recipient of the Nobel Prize in Physics and in which year was it awarded?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "first recipient of Nobel Prize in Physics",
+          "question": "Who was the first recipient of the Nobel Prize in Physics and in which year was it awarded?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the first recipient of the Nobel Prize in Physics and in which year was it awarded?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "when is the next deadpool movie being released?",
+      "ground_truth": [
+        "May 18, 2018"
+      ],
+      "prediction": "when is the next Deadpool movie being released after the first movie",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "when is the next Deadpool movie being released",
+          "question": "when is the next deadpool movie being released?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "when is the next Deadpool movie being released after the first movie"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "when is the next Deadpool movie being released after the first movie"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "when is the next Deadpool movie being released after the first movie"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "when is the next Deadpool movie being released after the first movie"
+        }
+      ]
+    },
+    {
+      "question": "which mode is used for short wave broadcast service?",
+      "ground_truth": [
+        "Olivia",
+        "MFSK"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "which mode is used for short wave broadcast service",
+          "question": "which mode is used for short wave broadcast service?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Which mode is used for short wave broadcast service in Germany?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "Which mode is used for short wave broadcast service in Germany?",
+          "question": "Which mode is used for short wave broadcast service in Germany?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Which short wave transmitter mode is used in Germany for short wave broadcast service?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "Which short wave transmitter mode is used in Germany for short wave broadcast service?",
+          "question": "Which short wave transmitter mode is used in Germany for short wave broadcast service?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Which German broadcaster uses a short wave transmitter in DRM mode for broadcast service?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "the south west wind blows across nigeria between?",
+      "ground_truth": [
+        "till September"
+      ],
+      "prediction": "the south west wind across Nigeria and its latitudinal range",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "transform",
+          "content": "the south west wind blows across nigeria between latitudes?",
+          "question": "the south west wind blows across nigeria between?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "the south west wind blows across nigeria between latitudes",
+          "question": "the south west wind blows across nigeria between latitudes?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "the south west wind blows across nigeria between which latitudes"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "the south west wind in Nigeria and its latitudinal range",
+          "question": "the south west wind blows across nigeria between which latitudes"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "the south west wind across Nigeria and its latitudinal range"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "the south west wind across Nigeria and its latitudinal range"
+        }
+      ]
+    },
+    {
+      "question": "what does hp mean in war and order?",
+      "ground_truth": [
+        "hit points or health points"
+      ],
+      "prediction": "what is the specific engine model HP used in aircraft by the Royal Flying Corps and RNAS during the First World War?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "HP in War and Order",
+          "question": "what does hp mean in war and order?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "what does HP stand for in aircraft engines in the context of war and order?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "HP in aircraft engines in the context of war and order",
+          "question": "what does HP stand for in aircraft engines in the context of war and order?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "what does HP stand for in aircraft engines used by the Royal Flying Corps and RNAS during the First World War?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "HP engine in First World War aircraft",
+          "question": "what does HP stand for in aircraft engines used by the Royal Flying Corps and RNAS during the First World War?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "what is the specific engine model HP used in aircraft by the Royal Flying Corps and RNAS during the First World War?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "what is the specific engine model HP used in aircraft by the Royal Flying Corps and RNAS during the First World War?"
+        }
+      ]
+    },
+    {
+      "question": "who wrote the first declaration of human rights?",
+      "ground_truth": [
+        "Cyrus"
+      ],
+      "prediction": "Who was the first person to write the preliminary draft of the United Nations Universal Declaration of Human Rights, specifically mentioning John Peters Humphrey?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "who wrote the first declaration of human rights",
+          "question": "who wrote the first declaration of human rights?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "who wrote the first version of the universal declaration of human rights"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "who wrote the first version of the universal declaration of human rights",
+          "question": "who wrote the first version of the universal declaration of human rights"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the first person to write the preliminary draft of the United Nations Universal Declaration of Human Rights, specifically mentioning John Peters Humphrey?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "Who was the first person to write the preliminary draft of the United Nations Universal Declaration of Human Rights, specifically mentioning John Peters Humphrey?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "Who was the first person to write the preliminary draft of the United Nations Universal Declaration of Human Rights, specifically mentioning John Peters Humphrey?"
+        }
+      ]
+    },
+    {
+      "question": "who is the owner of reading football club?",
+      "ground_truth": [
+        "Xiu Li Dai",
+        "Dai Xiuli",
+        "Dai Yongge",
+        "Yongge Dai"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "who is the owner of Reading Football Club",
+          "question": "who is the owner of reading football club?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was the owner of Reading Football Club before the 1982-83 season?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "Who was the owner of Reading Football Club before the 1982-83 season?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "Who was the owner of Reading Football Club before the 1982-83 season?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "when is the next scandal episode coming out?",
+      "ground_truth": [
+        "February 1, 2018"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "next episode of Scandal",
+          "question": "when is the next scandal episode coming out?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "when is the next episode of the current season of Scandal coming out?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "when is the next episode of the current season of Scandal coming out?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "when is the next episode of the current season of Scandal coming out",
+          "question": "when is the next episode of the current season of Scandal coming out?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "when is the next episode of Scandal season 6 coming out?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "when is the last time the philadelphia won the superbowl?",
+      "ground_truth": [
+        "Super Bowl LII,",
+        "2017"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "last time Philadelphia Eagles won Super Bowl",
+          "question": "when is the last time the philadelphia won the superbowl?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "When did the Philadelphia Eagles win their last Super Bowl?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "When did the Philadelphia Eagles win their last Super Bowl?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "When did the Philadelphia Eagles win their last Super Bowl?",
+          "question": "When did the Philadelphia Eagles win their last Super Bowl?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "When was the last Super Bowl win of the Philadelphia Eagles?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "who was the first lady nominated member of the rajya sabha?",
+      "ground_truth": [
+        "Mary Kom"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who was the first lady nominated member of the rajya sabha?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who was the first lady nominated member of the rajya sabha?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "first lady nominated member of the Rajya Sabha",
+          "question": "who was the first lady nominated member of the rajya sabha?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "who was the first lady nominated member of the rajya sabha?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "what is the most current adobe flash player version?",
+      "ground_truth": [
+        "28.0.0.137"
+      ],
+      "prediction": "What is the most recent version of Adobe Flash Player that is still supported for Windows and macOS?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "most current adobe flash player version",
+          "question": "what is the most current adobe flash player version?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "What is the most recent version of Adobe Flash Player that is still supported for Windows and macOS?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "What is the most recent version of Adobe Flash Player that is still supported for Windows and macOS?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "What is the most recent version of Adobe Flash Player that is still supported for Windows and macOS?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "What is the most recent version of Adobe Flash Player that is still supported for Windows and macOS?"
+        }
+      ]
+    },
+    {
+      "question": "swan lake the sleeping beauty and the nutcracker are three famous ballets by?",
+      "ground_truth": [
+        "Pyotr Ilyich Tchaikovsky"
+      ],
+      "prediction": "swan lake the sleeping beauty and the nutcracker are three famous ballets by which composer?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "swan lake the sleeping beauty and the nutcracker are three famous ballets by?",
+          "question": "swan lake the sleeping beauty and the nutcracker are three famous ballets by?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "swan lake the sleeping beauty and the nutcracker are three famous ballets by which composer?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "swan lake the sleeping beauty and the nutcracker composer",
+          "question": "swan lake the sleeping beauty and the nutcracker are three famous ballets by which composer?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "swan lake the sleeping beauty and the nutcracker are three famous ballets by which composer?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "swan lake the sleeping beauty and the nutcracker composer",
+          "question": "swan lake the sleeping beauty and the nutcracker are three famous ballets by which composer?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "swan lake the sleeping beauty and the nutcracker are three famous ballets by which composer?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "swan lake the sleeping beauty and the nutcracker are three famous ballets by which composer?"
+        }
+      ]
+    },
+    {
+      "question": "how many episodes are there in dragon ball z?",
+      "ground_truth": [
+        "291 episodes",
+        "291"
+      ],
+      "prediction": "",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "how many episodes are there in dragon ball z?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "how many episodes of dragon ball z",
+          "question": "how many episodes are there in dragon ball z?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "search",
+          "content": "how many episodes of original dragon ball z"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action after search, retrying"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "how many episodes are there in dragon ball z",
+          "question": "how many episodes are there in dragon ball z?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "how many episodes of dragon ball z were broadcasted in japan"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": ""
+        }
+      ]
+    },
+    {
+      "question": "cast of law & order special victim unit?",
+      "ground_truth": [
+        "Kelli Giddish",
+        "Richard Belzer",
+        "Stephanie March",
+        "Diane Neal",
+        "Ice-T",
+        "Danny Pino",
+        "Dann Florek",
+        "Tamara Tunie",
+        "Michaela McManus",
+        "Mariska Hargitay",
+        "Adam Beach",
+        "B. D. Wong",
+        "Christopher Meloni",
+        "Raúl Esparza",
+        "Michelle Hurd",
+        "Peter Scanavino"
+      ],
+      "prediction": "cast of law & order svu seasons 1-12 (excluding the 13th season)",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "cast of Law & Order: Special Victims Unit",
+          "question": "cast of law & order special victim unit?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "cast of law & order svu seasons 1-12?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "cast of law & order svu seasons 1-12",
+          "question": "cast of law & order svu seasons 1-12?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "cast of law & order svu seasons 1-12 (excluding the 13th season)"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "cast of law & order svu seasons 1-12 (excluding the 13th season)",
+          "question": "cast of law & order svu seasons 1-12 (excluding the 13th season)"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "cast of law & order svu seasons 1-12 (excluding the 13th season)"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "cast of law & order svu seasons 1-12 (excluding the 13th season)"
+        }
+      ]
+    },
+    {
+      "question": "who designed the garden city of new earswick?",
+      "ground_truth": [
+        "planner Raymond Unwin",
+        "architect Barry Parker",
+        "Raymond Unwin"
+      ],
+      "prediction": "who designed the garden city of new earswick in yorkshire?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who designed the garden city of new earswick?"
+        },
+        {
+          "cycle": 0,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who designed the garden city of new earswick?"
+        },
+        {
+          "cycle": 1,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "invalid",
+          "content": "",
+          "question": "who designed the garden city of new earswick?"
+        },
+        {
+          "cycle": 2,
+          "phase": "fallback",
+          "note": "invalid action: invalid"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "who designed the garden city of new earswick in yorkshire?"
+        }
+      ]
+    },
+    {
+      "question": "what is the first step in the evolution of the eye?",
+      "ground_truth": [
+        "photoreceptor proteins that sense light",
+        "eyespots"
+      ],
+      "prediction": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors according to the documents?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "what is the first step in the evolution of the eye",
+          "question": "what is the first step in the evolution of the eye?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors?",
+          "question": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors according to the information found?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors",
+          "question": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors according to the information found?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors according to the information found in the documents?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "what are the four general stages proposed by D.E. Nilsson for the evolution of a vertebrate eye from a patch of photoreceptors according to the documents?"
+        }
+      ]
+    },
+    {
+      "question": "where is the tv show the curse of oak island filmed?",
+      "ground_truth": [
+        "Oak Island"
+      ],
+      "prediction": "Where is the filming location for the fifth and subsequent seasons of the TV show The Curse of Oak Island, specifically in Nova Scotia, Canada?",
+      "f1": 0.07407407407407407,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "where is the tv show the curse of oak island filmed",
+          "question": "where is the tv show the curse of oak island filmed?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "where is the tv show the curse of oak island filmed in canada"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "where is the tv show the curse of oak island filmed in canada",
+          "question": "where is the tv show the curse of oak island filmed in canada"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Where is the filming location for the fifth and subsequent seasons of the TV show The Curse of Oak Island, specifically in Canada?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "filming locations for the fifth and subsequent seasons of The Curse of Oak Island in Canada",
+          "question": "Where is the filming location for the fifth and subsequent seasons of the TV show The Curse of Oak Island, specifically in Canada?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Where is the filming location for the fifth and subsequent seasons of the TV show The Curse of Oak Island, specifically in Nova Scotia, Canada?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "Where is the filming location for the fifth and subsequent seasons of the TV show The Curse of Oak Island, specifically in Nova Scotia, Canada?"
+        }
+      ]
+    },
+    {
+      "question": "where is gall bladder situated in human body?",
+      "ground_truth": [
+        "beneath the liver"
+      ],
+      "prediction": "The gall bladder is located on the right side of the body, closely in contact with the inferior surface.",
+      "f1": 0.09090909090909091,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "answered",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "transform",
+          "content": "where is the gall bladder located in the human body?",
+          "question": "where is gall bladder situated in human body?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "where is the gall bladder located in the human body",
+          "question": "where is the gall bladder located in the human body?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "where is the gall bladder located in the human body?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "where is the gall bladder located in the human body",
+          "question": "where is the gall bladder located in the human body?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "answer",
+          "content": "The gall bladder is located on the right side of the body, closely in contact with the inferior surface."
+        }
+      ]
+    },
+    {
+      "question": "who is the current director of the us mint?",
+      "ground_truth": [
+        "David J. Ryder",
+        "David Motl"
+      ],
+      "prediction": "who is the current director of the us mint coin production?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "who is the current director of the us mint?",
+          "question": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "who is the current director of the us mint?",
+          "question": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "who is the current director of the us mint?",
+          "question": "who is the current director of the us mint?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "who is the current director of the us mint coin production?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "who is the current director of the us mint coin production?"
+        }
+      ]
+    },
+    {
+      "question": "who was named african footballer of the year 2014?",
+      "ground_truth": [
+        "Yaya Touré"
+      ],
+      "prediction": "Who was named African Footballer of the Year in 2014, focusing on South African candidates?",
+      "f1": 0.0,
+      "em": 0.0,
+      "cycles": 3,
+      "status": "max_cycles",
+      "trajectory": [
+        {
+          "cycle": 0,
+          "phase": "initial",
+          "action": "search",
+          "content": "who was named African Footballer of the Year 2014",
+          "question": "who was named african footballer of the year 2014?"
+        },
+        {
+          "cycle": 0,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was named African Footballer of the Year in 2014?"
+        },
+        {
+          "cycle": 1,
+          "phase": "initial",
+          "action": "search",
+          "content": "Who was named African Footballer of the Year in 2014?",
+          "question": "Who was named African Footballer of the Year in 2014?"
+        },
+        {
+          "cycle": 1,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was named African Footballer of the Year in 2014?"
+        },
+        {
+          "cycle": 2,
+          "phase": "initial",
+          "action": "search",
+          "content": "African Footballer of the Year 2014",
+          "question": "Who was named African Footballer of the Year in 2014?"
+        },
+        {
+          "cycle": 2,
+          "phase": "post_search",
+          "action": "transform",
+          "content": "Who was named African Footballer of the Year in 2014, focusing on South African candidates?"
+        },
+        {
+          "cycle": 3,
+          "phase": "forced_answer",
+          "content": "Who was named African Footballer of the Year in 2014, focusing on South African candidates?"
+        }
+      ]
+    }
+  ]
+}

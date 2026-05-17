@@ -1,0 +1,2 @@
+- name: hermeneutic_agent
+  _target_: examples.hermeneutic_search.tools.hermeneutic_agent_loop.HermeneuticAgentLoop
