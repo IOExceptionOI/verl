@@ -37,28 +37,38 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
 
-_CLOSE_TAGS = ("</tool_call>", "</transform>", "</answer>")
+_MID_TAGS = ("</tool_call>", "</transform>")  # mid-trajectory actions
+_END_TAG = "</answer>"
 
 
 def truncate_after_first_tag(text: str) -> tuple[str, bool]:
-    """SR1-style postprocess: cut after the first close tag found.
+    """SR1-style postprocess truncation.
 
-    Mirrors Search-R1's `_postprocess_responses`. Without proper stop sequences
-    (which sglang + skip_tokenizer_init=True doesn't support well), the model
-    can keep generating after </answer>. This trims everything past the first tag.
+    Priority: cut at FIRST mid-trajectory tag (tool_call / transform) if any exists,
+    even if an <answer> appeared earlier in the text. This matches SR1's logic
+    (`split('</search>')[0] + '</search>'` taking priority over answer split)
+    and lets the trajectory CONTINUE when the model emitted a partial answer
+    before a legitimate next action.
+
+    Only when no mid tag exists do we cut at the first </answer>.
 
     Returns (truncated_text, was_truncated).
     """
-    earliest_end = -1
-    for tag in _CLOSE_TAGS:
+    # 1. Prefer mid-trajectory tags (search/transform). Keep up to the FIRST one.
+    mid_ends = []
+    for tag in _MID_TAGS:
         idx = text.find(tag)
         if idx != -1:
-            end = idx + len(tag)
-            if earliest_end == -1 or end < earliest_end:
-                earliest_end = end
-    if earliest_end == -1:
-        return text, False
-    return text[:earliest_end], True
+            mid_ends.append(idx + len(tag))
+    if mid_ends:
+        return text[: min(mid_ends)], True
+
+    # 2. Otherwise, cut at first </answer>.
+    idx = text.find(_END_TAG)
+    if idx != -1:
+        return text[: idx + len(_END_TAG)], True
+
+    return text, False
 
 
 def parse_hermeneutic_action(text: str) -> tuple:
