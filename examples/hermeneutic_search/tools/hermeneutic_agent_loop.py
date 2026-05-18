@@ -40,6 +40,10 @@ logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 _MID_TAGS = ("</tool_call>", "</transform>")  # mid-trajectory actions
 _END_TAG = "</answer>"
 
+# SR1-style: truncate tool observation to bound budget consumption.
+# Match SR1's max_obs_length=500 (each retrieved doc set ≈ 300-1000 tokens raw).
+MAX_OBS_TOKENS = 500
+
 
 def truncate_after_first_tag(text: str) -> tuple[str, bool]:
     """SR1-style postprocess truncation.
@@ -234,6 +238,9 @@ class HermeneuticAgentLoop(ToolAgentLoop):
 
                     obs_formatted = f"\n<tool_response>\n{obs_text}\n</tool_response>\n"
                     obs_ids = self.tokenizer.encode(obs_formatted, add_special_tokens=False)
+                    # SR1-style truncation: prevent a single search from eating the budget.
+                    if len(obs_ids) > MAX_OBS_TOKENS:
+                        obs_ids = obs_ids[:MAX_OBS_TOKENS]
 
                     current_cycle_response_ids.extend(obs_ids)
                     current_cycle_response_mask.extend([0] * len(obs_ids))
